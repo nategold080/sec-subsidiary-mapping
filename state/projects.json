@@ -62,5 +62,21 @@
     "created_at": "2026-03-03T00:00:00Z",
     "last_updated": "2026-03-03T07:06:00Z",
     "notes": "CLIENT-READY. 13,689,875 CFPB complaints + 27,832 FDIC institutions + 386 enforcement actions. 933,041 cross-links via 3-stage entity resolution (53 exact, 38 normalized, 193 fuzzy). 284 companies matched, avg confidence 0.956. Quality avg 0.487, 100% above 0.40 threshold. 107 tests passing. 9 problems resolved (P5 FFIEC CRA still OPEN — non-critical). 1,521-line dashboard, exports (CSV/JSON/Excel/Markdown), methodology doc, outreach (20 targets, 5 templates) all complete."
+  },
+  {
+    "id": "sec-subsidiary-mapping",
+    "name": "SEC Corporate Subsidiary & Ownership Mapping",
+    "status": "client-ready",
+    "score": 23,
+    "description": "Structured database of corporate subsidiary relationships extracted from SEC EDGAR Exhibit 21 filings, with jurisdiction normalization and tax haven analysis",
+    "data_sources": ["SEC EDGAR EFTS (filing discovery)", "SEC EDGAR Submissions API", "SEC Exhibit 21 HTML files", "SEC Company Tickers"],
+    "target_buyers": ["Moody's/Bureau van Dijk", "Dun & Bradstreet", "Middesk", "Dow Jones Risk & Compliance", "LexisNexis", "Compliance.ai", "Enigma Technologies", "Ramp"],
+    "target_researchers": ["Prof. Scott Dyreng (Duke)", "Prof. Lisa De Simone (Stanford)", "Prof. Michelle Hanlon (MIT)"],
+    "record_count": 18865,
+    "test_count": 90,
+    "problems_resolved": 0,
+    "created_at": "2026-03-03T00:00:00Z",
+    "last_updated": "2026-03-03T12:00:00Z",
+    "notes": "CLIENT-READY. 18,865 unique subsidiaries from 672 parent companies across 1,467 filings (2023-2025). 1,938 tax haven entities flagged across 111 jurisdictions. 76% parse success rate. Quality avg 0.806, 100% above threshold. 90 tests passing. Multi-strategy HTML parser (table/heuristic/pre/text). Top companies: Comcast (1,530), Lennar (1,122), Marriott (827). Delaware #1 jurisdiction (6,426). Exports (CSV/JSON/Excel/Markdown), methodology doc, outreach (17 targets, 3 templates), dashboard (8 sections) all complete."
   }
 ]

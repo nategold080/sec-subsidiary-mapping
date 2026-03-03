@@ -12,5 +12,33 @@
     "message": "State PUC Rate Case Tracker is complete and ready for review. 621 rate cases (582 real from OR PUC EDOCKETS + 39 from PA/CA/IN/WA) covering 467 utilities across 5 states. Date range 1990-2024. $23B total revenue requested, $10.5B approved. Average quality score 0.670 (100% above threshold). 186 tests passing, 7 problems resolved. 17 outreach targets identified across research, media, client, and employer categories. Dashboard, exports (CSV/JSON/Excel/Markdown), methodology doc, and pitch materials all ready. See projects/puc-rate-tracker/ for full deliverables.",
     "timestamp": "2026-03-03T00:00:00Z",
     "acknowledged": false
+  },
+  {
+    "project_id": "epa-tri-tracker",
+    "type": "client-ready",
+    "message": "EPA TRI Community Health & Demographics Tracker is complete and ready for review. 22,936 facilities from all 50 US states. 155,814 chemical release records (571 chemicals, 44,019 carcinogen releases). 6.54 billion lbs total reported releases. Cross-linked with 3,143 county health and 3,143 county demographics records. 100% FIPS county code resolution. 4,480 parent companies, 30 industry sectors. Average quality score 0.847, 100% above threshold. 169 tests passing, 8 problems resolved. 20+ outreach targets identified across research, media, nonprofit, and consulting categories. Dashboard (7 sections), exports (CSV/JSON/Excel/Markdown), methodology doc, and outreach package all ready. See projects/epa-tri-tracker/ for full deliverables.",
+    "timestamp": "2026-03-03T05:00:00Z",
+    "acknowledged": false
+  },
+  {
+    "project_id": "cfpb-complaint-tracker",
+    "type": "client-ready",
+    "message": "CFPB Consumer Complaint Cross-Linked Analysis is complete and ready for review. 13,689,875 CFPB complaints cross-linked with 27,832 FDIC institutions and 386 enforcement actions. 933,041 cross-links via 3-stage entity resolution (exact/normalized/fuzzy), avg confidence 0.956. 284 companies matched to FDIC institutions. Quality avg 0.487, 100% above 0.40 threshold. 107 tests passing, 9 problems resolved. 1,521-line Streamlit dashboard with 7 sections. Exports (CSV/JSON/Excel/Markdown), methodology doc, outreach package (20 targets, 5 email templates, pitch materials) all complete. P5 (FFIEC CRA access) remains OPEN but non-critical. See projects/cfpb-complaint-tracker/ for full deliverables.",
+    "timestamp": "2026-03-03T07:06:00Z",
+    "acknowledged": false
+  },
+  {
+    "project_id": null,
+    "type": "milestone",
+    "message": "Research cycle complete: 7 new ideas evaluated across transportation safety, labor/employment, housing, trade/commerce, and telecom domains. 5 ideas scored 22+ and accepted/proposed: (1) NHTSA Vehicle Safety Defect Tracker (25/30) — all 5 APIs tested and working, 2M+ records; (2) Employer Labor Compliance Tracker (24/30) — cross-links WHD+NLRB+OSHA, Project Firewall timing; (3) HUD Affordable Housing Compliance Tracker (24/30) — 54K LIHTC projects cross-linked with inspection scores; (4) H-1B Employer Compliance Tracker (23/30) — Project Firewall makes this urgent; (5) PHMSA Pipeline Safety (22/30) and CPSC Product Recall (22/30) as backup. FCC Broadband rejected (19/30). RECOMMENDED BUILD ORDER: NHTSA Vehicle Safety first (highest score, all APIs verified, massive scale), then Employer Labor Compliance (urgent buyer need from Project Firewall). See state/research_briefs/ for full briefs on all 7 ideas.",
+    "timestamp": "2026-03-03T08:00:00Z",
+    "acknowledged": false
+  },
+  {
+    "project_id": "sec-subsidiary-mapping",
+    "type": "client-ready",
+    "message": "SEC Corporate Subsidiary & Ownership Mapping is complete and ready for review. 18,865 unique subsidiaries from 672 parent companies across 1,467 filings (2023-2025). 1,938 tax haven entities across 111 jurisdictions. Multi-strategy HTML parser with 76% parse success rate. Quality avg 0.806, 100% above threshold. 90 tests passing. Top companies: Comcast (1,530 subs), Lennar (1,122), Marriott (827). Delaware is #1 jurisdiction (6,426 subs). Cayman Islands (239), Ireland (204), Netherlands (500) among top tax havens. Exports (CSV/JSON/Excel/Markdown), methodology doc, outreach package (17 targets, 3 email templates), and 8-section dashboard all complete. See projects/sec-subsidiary-mapping/ for full deliverables.",
+    "timestamp": "2026-03-03T12:00:00Z",
+    "acknowledged": false
   }
 ]
