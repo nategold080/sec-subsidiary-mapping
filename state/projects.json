@@ -110,5 +110,21 @@
     "created_at": "2026-03-03T00:00:00Z",
     "last_updated": "2026-03-04T00:00:00Z",
     "notes": "CLIENT-READY (Phase 1). 233,011 NLRB cases (2015-present), 91,656 employer profiles. Avg quality 0.981. Top repeat offenders: USPS (24K), UPS (2.6K), Starbucks (2.2K), AT&T (958), Amazon (395). Exports (CSV/JSON/Excel/Markdown), 8-section dashboard, methodology doc, outreach package (20 targets, 3 email templates, pitch materials) all complete. 107 tests. P1 (DOL WHD/OSHA data) OPEN — needs free API key registration at dataportal.dol.gov/registration. Both WHD (10246) and OSHA (10313) confirmed available on v4 API. Phase 2 will add WHD+OSHA cross-linking."
+  },
+  {
+    "id": "hud-housing-tracker",
+    "name": "HUD Affordable Housing Compliance Tracker",
+    "status": "client-ready",
+    "score": 24,
+    "description": "Cross-linked database of LIHTC tax credit projects, REAC physical inspections, and HUD multifamily properties with management company accountability profiles",
+    "data_sources": ["huduser.gov/lihtc (LIHTC CSV)", "ArcGIS Multifamily Assisted", "ArcGIS HUD Insured Multifamily"],
+    "target_buyers": ["Yardi Systems", "National Housing Compliance", "Novogradac", "Affordable Housing Investors", "CoStar Group", "Enterprise Community Partners"],
+    "target_researchers": ["Ingrid Gould Ellen (NYU Furman Center)", "Emily Benfer (Columbia Law)", "Rachel Garshick Kleit (Ohio State)", "Alex Schwartz (The New School)"],
+    "record_count": 124148,
+    "test_count": 106,
+    "problems_resolved": 2,
+    "created_at": "2026-03-03T00:00:00Z",
+    "last_updated": "2026-03-04T01:00:00Z",
+    "notes": "CLIENT-READY. 54,102 LIHTC projects, 33,772 REAC inspections, 36,274 multifamily properties. 51,427 cross-links via 5-stage engine (property ID, address exact, fuzzy, contract, owner aggregation). 4,556 management company profiles with portfolio-level REAC scores. 956 failing properties (<60 score). 3.7M+ total LIHTC units across 56 states/territories. 106 tests passing. 2 problems resolved. Exports (CSV/JSON/Excel/Markdown), 8-section dashboard, methodology doc, outreach package (20 targets, 3 email templates, pitch materials) all complete."
   }
 ]
