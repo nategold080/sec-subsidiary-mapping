@@ -159,8 +159,8 @@ def extract_source(source_key: str) -> list[dict]:
     console.print(f"  Parsing [cyan]{source_key}[/cyan]...")
 
     try:
-        # Read with pandas for robust CSV handling
-        df = pd.read_csv(csv_path, dtype=str, low_memory=False)
+        # Read with pandas for robust CSV handling; skip malformed rows
+        df = pd.read_csv(csv_path, dtype=str, low_memory=False, on_bad_lines="skip")
     except Exception as e:
         console.print(f"  [red]✗[/red] {source_key}: Failed to read CSV: {e}")
         return []

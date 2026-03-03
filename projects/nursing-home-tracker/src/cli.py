@@ -92,7 +92,8 @@ def stats():
 
 @cli.command()
 @click.option("--skip-download", is_flag=True, help="Skip download step (use cached data)")
-def pipeline(skip_download):
+@click.option("--force-download", is_flag=True, help="Force re-download even if cached")
+def pipeline(skip_download, force_download):
     """Run the full pipeline: download → extract → normalize → validate → store."""
     console.print("[bold blue]Starting full pipeline...[/bold blue]")
     from src.scrapers.cms_downloader import download_all
@@ -107,7 +108,7 @@ def pipeline(skip_download):
 
     if not skip_download:
         console.print("\n[bold]Step 1/5: Downloading CMS datasets...[/bold]")
-        download_all()
+        download_all(force=force_download)
     else:
         console.print("\n[bold]Step 1/5: Skipping download (using cached data)...[/bold]")
 
@@ -115,8 +116,11 @@ def pipeline(skip_download):
     all_records = extract_all()
 
     console.print("\n[bold]Step 3/5: Storing records...[/bold]")
+    # Load providers first, then other tables
+    if "provider_info" in all_records and all_records["provider_info"]:
+        store_source_data("provider_info", all_records["provider_info"])
     for source_key, records in all_records.items():
-        if records:
+        if source_key != "provider_info" and records:
             store_source_data(source_key, records)
 
     console.print("\n[bold]Step 4/5: Normalizing entities...[/bold]")

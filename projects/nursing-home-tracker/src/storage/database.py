@@ -49,7 +49,7 @@ CREATE TABLE IF NOT EXISTS providers (
     provider_phone_number TEXT,
     ownership_type TEXT,
     number_of_certified_beds INTEGER,
-    number_of_residents_in_certified_beds INTEGER,
+    number_of_residents_in_certified_beds REAL,
     provider_type TEXT,
     legal_business_name TEXT,
     overall_rating INTEGER,
@@ -82,8 +82,7 @@ CREATE TABLE IF NOT EXISTS health_deficiencies (
     deficiency_corrected TEXT,
     correction_date TEXT,
     inspection_cycle INTEGER,
-    created_at TEXT DEFAULT (datetime('now')),
-    FOREIGN KEY (federal_provider_number) REFERENCES providers(federal_provider_number)
+    created_at TEXT DEFAULT (datetime('now'))
 );
 
 CREATE TABLE IF NOT EXISTS penalties (
@@ -95,8 +94,7 @@ CREATE TABLE IF NOT EXISTS penalties (
     fine_amount REAL,
     penalty_date TEXT,
     penalty_status TEXT,
-    created_at TEXT DEFAULT (datetime('now')),
-    FOREIGN KEY (federal_provider_number) REFERENCES providers(federal_provider_number)
+    created_at TEXT DEFAULT (datetime('now'))
 );
 
 CREATE TABLE IF NOT EXISTS ownership (
@@ -111,8 +109,7 @@ CREATE TABLE IF NOT EXISTS ownership (
     association_date TEXT,
     normalized_owner_name TEXT,
     owner_classification TEXT,
-    created_at TEXT DEFAULT (datetime('now')),
-    FOREIGN KEY (federal_provider_number) REFERENCES providers(federal_provider_number)
+    created_at TEXT DEFAULT (datetime('now'))
 );
 
 CREATE TABLE IF NOT EXISTS survey_summary (
@@ -124,8 +121,7 @@ CREATE TABLE IF NOT EXISTS survey_summary (
     survey_type TEXT,
     total_number_of_health_deficiencies INTEGER,
     total_number_of_fire_safety_deficiencies INTEGER,
-    created_at TEXT DEFAULT (datetime('now')),
-    FOREIGN KEY (federal_provider_number) REFERENCES providers(federal_provider_number)
+    created_at TEXT DEFAULT (datetime('now'))
 );
 
 CREATE TABLE IF NOT EXISTS quality_measures (
@@ -139,8 +135,7 @@ CREATE TABLE IF NOT EXISTS quality_measures (
     score REAL,
     footnote TEXT,
     used_in_quality_measure_five_star_rating BOOLEAN,
-    created_at TEXT DEFAULT (datetime('now')),
-    FOREIGN KEY (federal_provider_number) REFERENCES providers(federal_provider_number)
+    created_at TEXT DEFAULT (datetime('now'))
 );
 
 CREATE TABLE IF NOT EXISTS pipeline_runs (

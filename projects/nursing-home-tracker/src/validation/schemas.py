@@ -25,7 +25,7 @@ class ProviderRecord(BaseModel):
     provider_phone_number: Optional[str] = None
     ownership_type: Optional[str] = None
     number_of_certified_beds: Optional[int] = None
-    number_of_residents_in_certified_beds: Optional[int] = None
+    number_of_residents_in_certified_beds: Optional[float] = None
     provider_type: Optional[str] = None
     legal_business_name: Optional[str] = None
 
@@ -48,6 +48,29 @@ class ProviderRecord(BaseModel):
         if v:
             return str(v).strip().upper()[:2]
         return v
+
+    @field_validator(
+        "number_of_certified_beds",
+        "number_of_facility_reported_incidents",
+        "number_of_substantiated_complaints",
+        "number_of_fines",
+        "number_of_payment_denials",
+        "total_number_of_penalties",
+        "overall_rating",
+        "health_inspection_rating",
+        "staffing_rating",
+        "quality_measure_rating",
+        mode="before",
+    )
+    @classmethod
+    def parse_int_from_float_string(cls, v):
+        """Parse integer fields that CMS may store as float strings (e.g., '3.0')."""
+        if v is None or v == "" or str(v).strip() == "":
+            return None
+        try:
+            return int(float(str(v).strip()))
+        except (ValueError, TypeError):
+            return None
 
 
 class HealthDeficiency(BaseModel):
