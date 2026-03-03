@@ -18,7 +18,7 @@
   {
     "id": "puc-rate-tracker",
     "name": "State PUC Rate Case Tracker",
-    "status": "research",
+    "status": "scaffolded",
     "score": 23,
     "description": "Structured database of utility rate case filings and decisions across state public utility commissions",
     "data_sources": ["state PUC docket systems (PA, OR, NY, TX, CA, NV, VT, MN)"],
@@ -29,6 +29,6 @@
     "problems_resolved": 0,
     "created_at": "2026-03-02T00:00:00Z",
     "last_updated": "2026-03-02T00:00:00Z",
-    "notes": "Second priority. Custom scrapers needed per state PUC. Only competitor is S&P RRA at $30K+/year."
+    "notes": "Scaffolded with 5 state PUCs (PA, OR, CA, IN, WA). Config files complete. CLI skeleton in place. Need to build scrapers next."
   }
 ]
