@@ -1,1 +1,98 @@
-[]
+[
+  {
+    "idea": "Nursing Home Inspection & Deficiency Tracker — Cross-linked CMS data on deficiencies, penalties, ownership (incl PE/REIT), staffing, quality measures",
+    "score": 26,
+    "score_breakdown": {"data_gap": 3, "buyer_clarity": 4, "technical_feasibility": 5, "cross_linking": 5, "scale": 5, "credibility": 4},
+    "status": "accepted",
+    "rejection_reason": null,
+    "research_notes": "6+ CMS CSV datasets freely downloadable. PE ownership disclosure rule (Nov 2023) creates timely hook. ProPublica covers deficiencies only. No free product cross-links ownership+deficiencies+penalties+staffing+quality. Buyers: PE firms, REITs, elder law attorneys, journalists, academics."
+  },
+  {
+    "idea": "State PUC Rate Case Tracker — Utility rate case filings and decisions across state public utility commissions",
+    "score": 23,
+    "score_breakdown": {"data_gap": 4, "buyer_clarity": 4, "technical_feasibility": 3, "cross_linking": 4, "scale": 4, "credibility": 4},
+    "status": "accepted",
+    "rejection_reason": null,
+    "research_notes": "Only competitor is S&P RRA at $30K+/year via Capital IQ. Data scattered across 50+ state PUC websites. Start with 8-10 large states. Buyers: clean energy cos, consulting firms, consumer advocates, law firms, academics."
+  },
+  {
+    "idea": "Infrastructure Project Cost Overrun Tracker — Federal and state DOT project data tracking estimates vs actuals",
+    "score": 22,
+    "score_breakdown": {"data_gap": 4, "buyer_clarity": 4, "technical_feasibility": 2, "cross_linking": 4, "scale": 3, "credibility": 5},
+    "status": "proposed",
+    "rejection_reason": null,
+    "research_notes": "Conditional accept. Strong idea but technical feasibility is low (2/5). Data in PDFs, MS Access, scattered state DOT portals. Revisit after top 2 projects are underway."
+  },
+  {
+    "idea": "Insurance Rate Filing Tracker — Cross-state insurance rate filing data from SERFF and state DOI websites",
+    "score": 21,
+    "score_breakdown": {"data_gap": 3, "buyer_clarity": 3, "technical_feasibility": 3, "cross_linking": 4, "scale": 4, "credibility": 4},
+    "status": "accepted",
+    "rejection_reason": null,
+    "research_notes": "CA DOI publishes Excel downloads. SERFF returned 403 (needs investigation). Commercial competitors exist but all enterprise-priced."
+  },
+  {
+    "idea": "FDA MAUDE Medical Device Adverse Event Tracker",
+    "score": 22,
+    "score_breakdown": {"data_gap": 2, "buyer_clarity": 3, "technical_feasibility": 5, "cross_linking": 4, "scale": 5, "credibility": 3},
+    "status": "rejected",
+    "rejection_reason": "Data already structured via openFDA API. Redica Systems serves this market. High feasibility indicates low defensibility.",
+    "research_notes": "openFDA provides free JSON API with bulk downloads."
+  },
+  {
+    "idea": "OSHA Workplace Inspection & Citation Tracker",
+    "score": 20,
+    "score_breakdown": {"data_gap": 2, "buyer_clarity": 3, "technical_feasibility": 5, "cross_linking": 3, "scale": 5, "credibility": 2},
+    "status": "rejected",
+    "rejection_reason": "DOL provides bulk CSV downloads and REST API. Violation Tracker by Good Jobs First already aggregates across 39 agencies.",
+    "research_notes": "3M+ inspections already structured."
+  },
+  {
+    "idea": "Federal Research Grant Award Tracker",
+    "score": 20,
+    "score_breakdown": {"data_gap": 2, "buyer_clarity": 2, "technical_feasibility": 5, "cross_linking": 3, "scale": 5, "credibility": 3},
+    "status": "rejected",
+    "rejection_reason": "NIH RePORTER API, NSF Award Search API, Dimensions.ai already cover this comprehensively.",
+    "research_notes": "Government APIs freely available."
+  },
+  {
+    "idea": "Clinical Trial Site Performance Tracker",
+    "score": 20,
+    "score_breakdown": {"data_gap": 2, "buyer_clarity": 3, "technical_feasibility": 4, "cross_linking": 3, "scale": 5, "credibility": 3},
+    "status": "rejected",
+    "rejection_reason": "AACT database already provides complete relational database of ClinicalTrials.gov. Valuable performance data is proprietary.",
+    "research_notes": "Citeline charges six figures but uses proprietary data we cannot replicate."
+  },
+  {
+    "idea": "Title IX Investigation & Resolution Tracker",
+    "score": 18,
+    "score_breakdown": {"data_gap": 2, "buyer_clarity": 3, "technical_feasibility": 3, "cross_linking": 3, "scale": 3, "credibility": 4},
+    "status": "rejected",
+    "rejection_reason": "Chronicle tracker and Title IX for All already cover this. OCR enforcement collapsed in 2025.",
+    "research_notes": "177 resolutions in 2025 vs 518 in 2024."
+  },
+  {
+    "idea": "Federal Agency FOIA Response Tracker",
+    "score": 16,
+    "score_breakdown": {"data_gap": 2, "buyer_clarity": 2, "technical_feasibility": 3, "cross_linking": 3, "scale": 3, "credibility": 3},
+    "status": "rejected",
+    "rejection_reason": "FOIA.gov provides structured CSVs. MuckRock and TRAC already track request-level data. No commercial buyers.",
+    "research_notes": "Target audience is budget-constrained nonprofits."
+  },
+  {
+    "idea": "Municipal Bond Issuance & Default Tracker",
+    "score": 15,
+    "score_breakdown": {"data_gap": 2, "buyer_clarity": 2, "technical_feasibility": 2, "cross_linking": 3, "scale": 3, "credibility": 3},
+    "status": "rejected",
+    "rejection_reason": "EMMA provides free access. Bloomberg and DPC DATA dominate. Bulk MSRB data requires paid subscription.",
+    "research_notes": "All buyer segments already served."
+  },
+  {
+    "idea": "University Endowment Alternative Investment Tracker",
+    "score": 12,
+    "score_breakdown": {"data_gap": 1, "buyer_clarity": 2, "technical_feasibility": 2, "cross_linking": 3, "scale": 2, "credibility": 2},
+    "status": "rejected",
+    "rejection_reason": "PitchBook, Preqin, Burgiss dominate. Most universities block fund-level disclosure. Too similar to Pension Fund Tracker.",
+    "research_notes": "Only 5-10 endowments disclose fund names."
+  }
+]

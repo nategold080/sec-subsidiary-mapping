@@ -1,1 +1,34 @@
-[]
+[
+  {
+    "id": "nursing-home-tracker",
+    "name": "Nursing Home Inspection & Deficiency Tracker",
+    "status": "research",
+    "score": 26,
+    "description": "Cross-linked database of nursing home deficiencies, penalties, ownership (incl PE/REIT), staffing, and quality measures from CMS data",
+    "data_sources": ["data.cms.gov/health-deficiencies", "data.cms.gov/penalties", "data.cms.gov/ownership", "data.cms.gov/provider-info", "data.cms.gov/survey-summary", "cms-cost-reports"],
+    "target_buyers": ["PE firms in senior care", "Senior care REITs (Sabra, CareTrust, Omega)", "Elder law attorneys", "LTCCC/National Consumer Voice", "KFF Health News/ProPublica", "Wharton/NYU researchers"],
+    "target_researchers": ["Atul Gupta at Wharton", "Sabrina Howell at NYU", "NBER healthcare team"],
+    "record_count": 0,
+    "test_count": 0,
+    "problems_resolved": 0,
+    "created_at": "2026-03-02T00:00:00Z",
+    "last_updated": "2026-03-02T00:00:00Z",
+    "notes": "Highest-scored idea (26/30). Starting scaffold. CMS data is all downloadable CSV. PE ownership disclosure rule (Nov 2023) creates timely hook."
+  },
+  {
+    "id": "puc-rate-tracker",
+    "name": "State PUC Rate Case Tracker",
+    "status": "research",
+    "score": 23,
+    "description": "Structured database of utility rate case filings and decisions across state public utility commissions",
+    "data_sources": ["state PUC docket systems (PA, OR, NY, TX, CA, NV, VT, MN)"],
+    "target_buyers": ["Clean energy companies (NextEra, Enel, AES)", "Energy consulting firms (Huron, CRA)", "Consumer advocacy (AARP, NCLC)", "Environmental groups (NRDC, Sierra Club)", "Law firms (Van Ness Feldman)"],
+    "target_researchers": ["Berkeley Energy Institute", "MIT CEEPR", "Resources for the Future"],
+    "record_count": 0,
+    "test_count": 0,
+    "problems_resolved": 0,
+    "created_at": "2026-03-02T00:00:00Z",
+    "last_updated": "2026-03-02T00:00:00Z",
+    "notes": "Second priority. Custom scrapers needed per state PUC. Only competitor is S&P RRA at $30K+/year."
+  }
+]
