@@ -8,6 +8,38 @@
     "research_notes": "6+ CMS CSV datasets freely downloadable. PE ownership disclosure rule (Nov 2023) creates timely hook. ProPublica covers deficiencies only. No free product cross-links ownership+deficiencies+penalties+staffing+quality. Buyers: PE firms, REITs, elder law attorneys, journalists, academics."
   },
   {
+    "idea": "EPA Toxic Release Inventory Cross-Linked with Health & Demographics — Facility-level toxic releases cross-linked with county health outcomes, Census demographics, and EJScreen data",
+    "score": 28,
+    "score_breakdown": {"data_gap": 4, "buyer_clarity": 4, "technical_feasibility": 5, "cross_linking": 5, "scale": 5, "credibility": 5},
+    "status": "accepted",
+    "rejection_reason": null,
+    "research_notes": "Researched 2026-03-02. All government CSV/API sources, no scraping needed. 80,000+ TRI facilities, 3,143 counties with health data, 74,000+ Census tracts. Cross-links: TRI releases -> County Health Rankings -> Census demographics -> EJScreen. No free open cross-linked database exists. Highest score of all ideas ever evaluated (28/30). Environmental justice has top-tier academic/media/policy relevance. Potential collaboration with Dr. Robert Bullard. Full brief at state/research_briefs/epa_tri_health.md."
+  },
+  {
+    "idea": "CFPB Consumer Complaint Cross-Linked Analysis — Cross-link 2M+ CFPB complaints with FDIC institution data, CRA ratings, and enforcement actions",
+    "score": 26,
+    "score_breakdown": {"data_gap": 4, "buyer_clarity": 4, "technical_feasibility": 4, "cross_linking": 5, "scale": 5, "credibility": 4},
+    "status": "accepted",
+    "rejection_reason": null,
+    "research_notes": "Researched 2026-03-02. CFPB bulk CSV/API tested (2M+ complaints). FDIC BankFind API tested and working (4,600+ banks). FFIEC CRA ratings available quarterly. CFPB enforcement actions scrapeable (300+ since 2012). Cross-linking IS the value proposition — match company names across CFPB/FDIC/FFIEC/enforcement. Named buyers: Ncontracts, Wolters Kluwer, Cornerstone Advisors, S&P Global, Klaros Group. Full brief at state/research_briefs/cfpb_cross_linked.md."
+  },
+  {
+    "idea": "Corporate Subsidiary & Ownership Mapping from SEC EDGAR Exhibit 21 Filings",
+    "score": 23,
+    "score_breakdown": {"data_gap": 3, "buyer_clarity": 4, "technical_feasibility": 3, "cross_linking": 4, "scale": 5, "credibility": 4},
+    "status": "accepted",
+    "rejection_reason": null,
+    "research_notes": "Researched 2026-03-02. SEC EDGAR Full-Text Search API returned 1,052 Exhibit 21 filings for H1 2024 alone. Submissions API tested with Apple (CIK 320193). Sample Exhibit 21 HTML (Abbott Labs) confirmed parseable. sec-api.io is a paid competitor (100K+ subsidiary lists) but no FREE open database exists. HTML format variation is main challenge. Conditional accept — start after EPA TRI and CFPB. Named buyers: Moody's/BvD, D&B, Middesk, Dow Jones R&C, LexisNexis. Full brief at state/research_briefs/sec_subsidiary_mapping.md."
+  },
+  {
+    "idea": "State Medical Board Disciplinary Actions Tracker — Cross-state database of physician discipline cross-linked with NPI, OIG exclusions, CMS Open Payments",
+    "score": 21,
+    "score_breakdown": {"data_gap": 3, "buyer_clarity": 4, "technical_feasibility": 2, "cross_linking": 4, "scale": 4, "credibility": 4},
+    "status": "proposed",
+    "rejection_reason": null,
+    "research_notes": "Researched 2026-03-02. FSMB DocInfo provides free individual lookups but no bulk access. California MBC returned 404 redirect on test. Each of 50+ state boards uses different format (HTML tables, PDFs, newsletters). Technical feasibility (2/5) is the critical weakness — would need 50+ custom scrapers. Score above threshold at 21 but lower priority than EPA TRI (28), CFPB (26), SEC Subsidiary (23). Consider starting with 5-10 most accessible states. Named buyers: Doximity, Definitive Healthcare, Symplr, Verifiable. Full brief at state/research_briefs/medical_board_disciplinary.md."
+  },
+  {
     "idea": "State PUC Rate Case Tracker — Utility rate case filings and decisions across state public utility commissions",
     "score": 23,
     "score_breakdown": {"data_gap": 4, "buyer_clarity": 4, "technical_feasibility": 3, "cross_linking": 4, "scale": 4, "credibility": 4},
@@ -24,20 +56,100 @@
     "research_notes": "Conditional accept. Strong idea but technical feasibility is low (2/5). Data in PDFs, MS Access, scattered state DOT portals. Revisit after top 2 projects are underway."
   },
   {
-    "idea": "Insurance Rate Filing Tracker — Cross-state insurance rate filing data from SERFF and state DOI websites",
-    "score": 21,
-    "score_breakdown": {"data_gap": 3, "buyer_clarity": 3, "technical_feasibility": 3, "cross_linking": 4, "scale": 4, "credibility": 4},
+    "idea": "NHTSA Vehicle Safety Defect Tracker — Cross-linked complaints, investigations, recalls, TSBs, and manufacturer communications with full defect lifecycle tracing",
+    "score": 25,
+    "score_breakdown": {"data_gap": 4, "buyer_clarity": 4, "technical_feasibility": 5, "cross_linking": 5, "scale": 5, "credibility": 2},
     "status": "accepted",
     "rejection_reason": null,
-    "research_notes": "CA DOI publishes Excel downloads. SERFF returned 403 (needs investigation). Commercial competitors exist but all enterprise-priced."
+    "research_notes": "Researched 2026-03-03. ALL APIs tested and working: complaints (391 results for Tesla Model 3 2023), recalls (10 campaigns), investigations (4,159 total). Flat file downloads include FLAT_CMPL.zip (1949-present, updated daily), FLAT_RCL.zip, FLAT_TSBS.zip, FLAT_INV.zip. No free product cross-links the full defect lifecycle (complaint clusters -> investigation triggers -> recall outcomes -> TSB remedies). OEMDTC.com is a web viewer only, not a structured data product. 2M+ total records across 5 datasets. Named buyers: lemon law firms, auto insurers (Verisk, LexisNexis Risk Solutions), fleet managers, product liability firms. Full brief at state/research_briefs/nhtsa_vehicle_safety.md."
+  },
+  {
+    "idea": "Employer Labor Compliance Tracker — Cross-linked DOL WHD wage violations, NLRB unfair labor practice charges, OSHA citations, employer entity resolution with composite compliance scoring",
+    "score": 24,
+    "score_breakdown": {"data_gap": 4, "buyer_clarity": 5, "technical_feasibility": 3, "cross_linking": 5, "scale": 5, "credibility": 2},
+    "status": "accepted",
+    "rejection_reason": null,
+    "research_notes": "Researched 2026-03-03. Good Jobs First Violation Tracker is a partial competitor (114K+ WHD entries, OSHA 5K+ entries) but lacks entity resolution, NLRB cases, and composite scoring. DOL WHD data available via data.gov (concluded actions since FY2005, ~23-30K/year). NLRB Advanced Data Search exports up to 100K records; labordata/nlrb-data GitHub repo has daily-refreshed data since 2010 (20-30K charges/year). OSHA inspection data via DOL bulk CSV (3M+ inspections). EEOC data more limited at case level. Timely: DOL 'Project Firewall' (Sept 2025) created inter-agency H-1B enforcement coordination. Named buyers: immigration law firms (Fragomen, BAL), compliance platforms (Navex Global), ESG investors, union campaigns, employment law firms. Full brief at state/research_briefs/employer_labor_compliance.md."
+  },
+  {
+    "idea": "HUD Affordable Housing Compliance Tracker — Cross-linked LIHTC properties, REAC inspection scores, Section 8 contracts, and ownership data for all federally-subsidized housing",
+    "score": 24,
+    "score_breakdown": {"data_gap": 4, "buyer_clarity": 4, "technical_feasibility": 4, "cross_linking": 5, "scale": 5, "credibility": 2},
+    "status": "accepted",
+    "rejection_reason": null,
+    "research_notes": "Researched 2026-03-03. HUD LIHTC database: 54,102 projects, 3.7M units (CSV/Access download). REAC inspection scores downloadable CSV (~20K inspections/year, scored 0-100). Section 8 contracts on data.hud.gov. HUD acknowledges internal cross-linking but does NOT release the cross-linked dataset. NLIHC's NHPD is closest competitor but lacks inspection scores and detailed ownership. Novogradac maps LIHTC but no cross-linking. 400K+ records from 4+ sources. Named buyers: housing developers (Enterprise, LISC), state HFAs, LIHTC syndicators (Raymond James), policy researchers (Urban Institute, Brookings), journalism (ProPublica, Marshall Project). Full brief at state/research_briefs/hud_affordable_housing.md."
+  },
+  {
+    "idea": "H-1B Employer Compliance Tracker — Cross-linked DOL LCA data, USCIS approval/denial rates, WHD enforcement actions, and willful violator lists for H-1B sponsors",
+    "score": 23,
+    "score_breakdown": {"data_gap": 3, "buyer_clarity": 5, "technical_feasibility": 4, "cross_linking": 5, "scale": 4, "credibility": 2},
+    "status": "proposed",
+    "rejection_reason": null,
+    "research_notes": "Researched 2026-03-03. h1bdata.info indexes 4.8M+ LCA records but no enforcement cross-link. USCIS Employer Data Hub provides approval/denial rates (CSV, FY2009-2026Q1) but no wage data. DOL WHD has compliance actions since FY2005. DOL publishes H-1B willful violator list. No product combines LCA wages + USCIS outcomes + WHD violations. EXTREMELY timely: Project Firewall (Sept 2025) is DOL's most aggressive H-1B enforcement ever — 175+ active investigations, $15M back wages. EEOC partnered Dec 2025. Immigration is top political issue. Buyer urgency is highest of all new ideas. Scored 23 — accept but lower priority than NHTSA (25) and labor compliance (24) due to partial data gap (h1bdata.info covers base layer). Full brief at state/research_briefs/h1b_employer_compliance.md."
+  },
+  {
+    "idea": "PHMSA Pipeline Safety Incident Tracker — Cross-linked pipeline incidents, enforcement actions, operator data, with community impact demographics",
+    "score": 22,
+    "score_breakdown": {"data_gap": 4, "buyer_clarity": 3, "technical_feasibility": 4, "cross_linking": 4, "scale": 4, "credibility": 3},
+    "status": "proposed",
+    "rejection_reason": null,
+    "research_notes": "Researched 2026-03-03. PHMSA provides extensive CSV/ZIP downloads: incident flagged files (20+ years, 4 pipeline types), operator annual reports (OpID system), enforcement data (NOPVs, corrective actions). $6B+ property damage, 306 casualties over 20 years. Pipeline Safety Trust has basic monthly dashboard but no structured cross-linked product. No product connects incidents -> enforcement -> operator profiles -> community demographics. 20K+ records from 4+ sources. Named buyers: environmental law firms, insurance/reinsurance (Swiss Re, Munich Re), energy consultants, ESG researchers. Full brief at state/research_briefs/phmsa_pipeline_safety.md."
+  },
+  {
+    "idea": "CPSC Product Safety & Recall Tracker — Cross-linked CPSC recalls, SaferProducts.gov incident reports, NEISS injury data, manufacturer/importer tracking",
+    "score": 22,
+    "score_breakdown": {"data_gap": 3, "buyer_clarity": 4, "technical_feasibility": 5, "cross_linking": 3, "scale": 4, "credibility": 3},
+    "status": "proposed",
+    "rejection_reason": null,
+    "research_notes": "Researched 2026-03-03. CPSC Recalls API tested and working (JSON, 1973-present). SaferProducts.gov API (OData) available. NEISS provides ER injury surveillance data. No product cross-links recalls -> incident reports -> injury data -> manufacturer history. 50K+ direct recall/incident records plus 400K+ NEISS estimates. Named buyers: product liability firms, retail compliance teams (Amazon, Walmart), product testing labs (UL, Intertek), insurance. Full brief at state/research_briefs/cpsc_product_recall.md."
+  },
+  {
+    "idea": "FCC Broadband & Telecom Complaint Tracker — Cross-linked FCC consumer complaints with broadband deployment data",
+    "score": 19,
+    "score_breakdown": {"data_gap": 2, "buyer_clarity": 3, "technical_feasibility": 5, "cross_linking": 3, "scale": 3, "credibility": 3},
+    "status": "rejected",
+    "rejection_reason": "Researched 2026-03-03. Below 20-point threshold. FCC complaint data is already well-structured and accessible via API and open data portal. BroadbandNow and similar sites aggregate coverage data. Cross-linking adds limited incremental value. Consumer advocacy buyers are budget-constrained. Telecom analysts use paid Bloomberg/S&P data. Full brief at state/research_briefs/fcc_broadband_complaints.md.",
+    "research_notes": "FCC Consumer Complaints API at fcc.gov/consumer-help-center-api. Open data at opendata.fcc.gov. BDC data at broadbandmap.fcc.gov. Data is already reasonably structured and accessible."
+  },
+  {
+    "idea": "Building Code Violation Tracker — Cross-city aggregation of building code violations, inspections, and complaints",
+    "score": 20,
+    "score_breakdown": {"data_gap": 3, "buyer_clarity": 3, "technical_feasibility": 4, "cross_linking": 3, "scale": 4, "credibility": 3},
+    "status": "rejected",
+    "rejection_reason": "Researched 2026-03-02. At exactly 20/30 threshold but rejected in favor of higher-scoring alternatives. City-level data already structured (Socrata APIs) — we'd be doing aggregation/standardization, not structuring unstructured data. Cross-linking value (3/5) is weaker than other candidates. Buyer clarity (3/5) limited — no standout paying organization. Credibility signal (3/5) is modest. Full brief at state/research_briefs/building_code_violations.md.",
+    "research_notes": "Researched 2026-03-02. Chicago (800K+ violations on Socrata), NYC (DOB/HPD/ECB datasets on Open Data), Philadelphia (OpenDataPhilly). LA and Houston have limited open data. ViolationWatch.nyc and DOBGuard are NYC-only competitors. No cross-city aggregation exists but the standardization challenge (different code systems per city) is the main work, not data extraction."
+  },
+  {
+    "idea": "State Cannabis License & Enforcement Tracker — Cannabis business licenses, violations, and enforcement across legalized states",
+    "score": 20,
+    "score_breakdown": {"data_gap": 3, "buyer_clarity": 3, "technical_feasibility": 3, "cross_linking": 4, "scale": 4, "credibility": 3},
+    "status": "rejected",
+    "rejection_reason": "Researched 2026-03-02. Borderline at 20/30 but rejected. Emerald Intel is a direct well-funded competitor. Cannabis remains federally illegal — reputational risk for Nathan's professional brand. Each state requires custom work. Buyer universe is smaller/more niche. Other candidates score higher. Revisit if federal legalization advances. Full brief at state/research_briefs/cannabis_license_tracker.md.",
+    "research_notes": "California DCC has data dashboards and license search (React SPA with API backend). Massachusetts CCC publishes open data. Emerald Intel tracks 4,372+ new licenses in 2025. Dan K Reports does legislation tracking. Husch Blackwell has a regulatory map. No unified structured license + enforcement database but Emerald Intel is close."
+  },
+  {
+    "idea": "State Lobbying Disclosure Aggregator — Aggregate state-level lobbying registration and expenditure data from all 50 states",
+    "score": 17,
+    "score_breakdown": {"data_gap": 2, "buyer_clarity": 3, "technical_feasibility": 2, "cross_linking": 4, "scale": 3, "credibility": 3},
+    "status": "rejected",
+    "rejection_reason": "Researched 2026-03-02. OpenSecrets already aggregates state lobbying data for 20 states. FollowTheMoney.org is building a 50-state database. Only 19/50 states provide meaningful electronic disclosure. Montana reverted to paper forms in 2019. These well-funded nonprofits have years of head start and dedicated teams. Technical feasibility is low (50 different state systems). Full brief at state/research_briefs/state_lobbying_disclosure.md.",
+    "research_notes": "OpenSecrets covers 20 states in their state lobbying dropdown. FollowTheMoney (National Institute on Money in State Politics) is working toward 50-state coverage. NCSL has a legislation database but not expenditure data. Many states use paper forms or proprietary web apps with no standard schema."
+  },
+  {
+    "idea": "Insurance Rate Filing Tracker — Cross-state insurance rate filing data from SERFF and state DOI websites",
+    "score": 17,
+    "score_breakdown": {"data_gap": 2, "buyer_clarity": 3, "technical_feasibility": 2, "cross_linking": 4, "scale": 3, "credibility": 3},
+    "status": "rejected",
+    "rejection_reason": "Deep research revised score from 21 to 17. S&P Global RateFilings.com has 2M+ filings (strong competitor). SERFF returns 403 (primary multi-state data source blocked). Most state DOI sites are JS-heavy SPAs or return 403. Only FL IRFS and CMS health rate data are accessible. Technical feasibility dropped to 2/5. Below 20-point threshold.",
+    "research_notes": "Researched 2026-03-02. Scaffolded project before research completed. SERFF returns 403. CA DOI is Oracle APEX (JS). TX DOI, NY DFS sites require browser rendering. Only FL OIR and CMS health data bulk CSVs accessible. Abandoned scaffold at projects/insurance-rate-tracker/."
   },
   {
     "idea": "FDA MAUDE Medical Device Adverse Event Tracker",
     "score": 19,
     "score_breakdown": {"data_gap": 2, "buyer_clarity": 3, "technical_feasibility": 5, "cross_linking": 4, "scale": 5, "credibility": 2},
     "status": "rejected",
-    "rejection_reason": "Deep research confirms prior rejection. openFDA provides free structured JSON APIs for all 9 device endpoints (MAUDE, 510k, PMA, recalls, enforcement, classification, UDI, registrations, COVID serology) with bulk downloads. DeviceEvents (17.4M reports, serves hedge funds/law firms/hospitals), Redica Systems (200+ customers, entity resolution across all FDA databases, venture-funded), Clarivate, and IQVIA all serve this market. Cross-linking value is real (4/5) but Redica already does manufacturer entity resolution across all databases. The core Data Factory pattern requires structuring unstructured data — here the FDA has already done the structuring. High feasibility (5/5) signals low defensibility. Credibility revised down to 2/5 since MAUDE is already extensively used in academic research (13% of postmarket surveillance studies per 2024 scoping review). Full brief at state/research_briefs/fda_maude.md.",
-    "research_notes": "Researched 2026-03-02. openFDA provides 9 device API endpoints all with bulk JSON downloads. MAUDE has 135 fields across 6 file types (Master Event, Device, Patient, Text, Device Problems, Problem Codes). Key cross-linking opportunity: manufacturer entity resolution across MAUDE + 510(k) + recalls + warning letters + UDI. But Redica Systems (redica.com) already does this with Zingg.ai entity resolution, 200+ paying customers, and dedicated engineering. DeviceEvents (deviceevents.com) serves litigation attorneys and hedge funds with 17.4M+ report search. Complizen, Clarivate, IQVIA also compete. Potential buyers: litigation law firms (Troutman Pepper, Greenberg Traurig), hedge funds (Point72 known to use MAUDE data), device manufacturers, hospital systems. All segments already served by incumbents. Academic interest is high but researchers access MAUDE directly via openFDA — no need for intermediary. Score revised down from 22 to 19: credibility dropped from 3 to 2 (not novel enough for academic collaboration). Below 20-point threshold. Do not pursue."
+    "rejection_reason": "Deep research confirms prior rejection. openFDA provides free structured JSON APIs for all 9 device endpoints. DeviceEvents (17.4M reports), Redica Systems (200+ customers), Clarivate, and IQVIA all serve this market. High feasibility signals low defensibility.",
+    "research_notes": "Full brief at state/research_briefs/fda_maude.md."
   },
   {
     "idea": "OSHA Workplace Inspection & Citation Tracker",
@@ -60,7 +172,7 @@
     "score": 20,
     "score_breakdown": {"data_gap": 2, "buyer_clarity": 3, "technical_feasibility": 4, "cross_linking": 3, "scale": 5, "credibility": 3},
     "status": "rejected",
-    "rejection_reason": "AACT database already provides complete relational database of ClinicalTrials.gov. Valuable performance data is proprietary.",
+    "rejection_reason": "AACT database already provides complete relational database of ClinicalTrials.gov.",
     "research_notes": "Citeline charges six figures but uses proprietary data we cannot replicate."
   },
   {

@@ -40,5 +40,19 @@
     "message": "SEC Corporate Subsidiary & Ownership Mapping is complete and ready for review. 18,865 unique subsidiaries from 672 parent companies across 1,467 filings (2023-2025). 1,938 tax haven entities across 111 jurisdictions. Multi-strategy HTML parser with 76% parse success rate. Quality avg 0.806, 100% above threshold. 90 tests passing. Top companies: Comcast (1,530 subs), Lennar (1,122), Marriott (827). Delaware is #1 jurisdiction (6,426 subs). Cayman Islands (239), Ireland (204), Netherlands (500) among top tax havens. Exports (CSV/JSON/Excel/Markdown), methodology doc, outreach package (17 targets, 3 email templates), and 8-section dashboard all complete. See projects/sec-subsidiary-mapping/ for full deliverables.",
     "timestamp": "2026-03-03T12:00:00Z",
     "acknowledged": false
+  },
+  {
+    "project_id": "nhtsa-vehicle-safety",
+    "type": "client-ready",
+    "message": "NHTSA Vehicle Safety Defect Tracker is complete and ready for review. 500,000 complaints, 2,955 recall campaigns (all 33 major makes), 5,326 defect investigations. 175,443 cross-links tracing the full complaint → investigation → recall lifecycle. 26,615 crashes, 2,064 deaths, 7,337 fires tracked. 6,576 unique vehicle make/model pairs. 88 tests passing, 6 problems resolved. 8-section interactive dashboard, exports (CSV/JSON/Excel/Markdown), methodology doc, outreach package (15+ targets, 3 email templates) all complete. See projects/nhtsa-vehicle-safety/ for full deliverables.",
+    "timestamp": "2026-03-03T19:00:00Z",
+    "acknowledged": false
+  },
+  {
+    "project_id": "employer-labor-compliance",
+    "type": "needs-human",
+    "message": "DOL data download blocked by site migration. enforcementdata.dol.gov is now dead (DNS). New DOL v4 API requires a free API key from dataportal.dol.gov/api-keys. However, WHD/OSHA datasets are NOT yet on the v4 API — only 10 datasets are live (ILAB/WB/MSHA). The DOL v4 API does have OSHA sub-tables (violations, emphasis codes) but not the main inspection dataset. ACTION NEEDED: Register for free API key at dataportal.dol.gov/api-keys, then check if WHD/OSHA bulk data becomes available. In the meantime, the project has 233,011 NLRB cases loaded from the labordata/nlrb-data GitHub source (fully accessible, no auth needed). The project can ship with NLRB-only data as a 'first phase' while DOL access is resolved.",
+    "timestamp": "2026-03-03T19:00:00Z",
+    "acknowledged": false
   }
 ]

@@ -1,0 +1,9 @@
+[project]
+name = "employer-labor-compliance"
+version = "1.0.0"
+description = "Cross-linked employer labor compliance tracker: DOL WHD + OSHA + NLRB"
+requires-python = ">=3.12"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
