@@ -94,12 +94,12 @@ def sample_ownership():
 
 @pytest.fixture
 def sample_csv_file(tmp_path):
-    """Create a sample CSV file for testing extraction."""
-    csv_content = """federal_provider_number,provider_name,provider_state,overall_rating,staffing_rating
-015001,SUNSHINE NURSING HOME,AL,3,4
-015002,HAPPY VALLEY CARE CENTER,AL,5,5
-015003,GOLDEN YEARS FACILITY,AL,1,2
-"""
+    """Create a sample CSV file for testing extraction using actual CMS column names."""
+    csv_content = '''"CMS Certification Number (CCN)","Provider Name","State","Overall Rating","Staffing Rating"
+"015001","SUNSHINE NURSING HOME","AL","3","4"
+"015002","HAPPY VALLEY CARE CENTER","AL","5","5"
+"015003","GOLDEN YEARS FACILITY","AL","1","2"
+'''
     csv_path = tmp_path / "provider_info.csv"
     csv_path.write_text(csv_content)
     return csv_path

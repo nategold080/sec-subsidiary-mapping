@@ -1,19 +1,19 @@
 """CMS Data Downloader — fetches CSV datasets from data.cms.gov.
 
 This module downloads nursing home datasets from CMS's Provider Data Catalog.
-All datasets are freely available as CSV downloads. We cache raw files locally
+The CMS API limits queries to 1500 rows per request, so we paginate through
+the full dataset. All datasets are freely available. We cache raw files locally
 to avoid re-downloading on subsequent runs.
 """
 
-import hashlib
+import csv
+import io
 import time
-from datetime import datetime
 from pathlib import Path
 
 import httpx
 import yaml
 from rich.console import Console
-from rich.progress import Progress, SpinnerColumn, TextColumn
 
 console = Console()
 PROJECT_ROOT = Path(__file__).parent.parent.parent
@@ -22,6 +22,7 @@ CACHE_DIR = PROJECT_ROOT / "data" / "raw"
 
 USER_AGENT = "DataFactory/1.0 (research; contact: nathanmauricegoldberg@gmail.com)"
 DELAY_SECONDS = 2
+PAGE_SIZE = 1500  # CMS API maximum
 
 
 def load_config() -> dict:
@@ -45,24 +46,75 @@ def is_cached(source_key: str) -> bool:
     return age_hours < 24
 
 
-def download_csv(url: str, dest: Path, source_name: str) -> bool:
-    """Download a CSV file from CMS with proper headers and error handling."""
+def _get_total_count(dataset_id: str, client: httpx.Client) -> int:
+    """Get the total number of records for a dataset."""
+    url = f"https://data.cms.gov/provider-data/api/1/datastore/query/{dataset_id}/0"
+    params = {"limit": 1, "offset": 0, "count": "true", "results": "false"}
+    response = client.get(url, params=params)
+    response.raise_for_status()
+    data = response.json()
+    return data.get("count", 0)
+
+
+def _download_page(dataset_id: str, offset: int, client: httpx.Client) -> str:
+    """Download one page of CSV data from CMS API."""
+    url = f"https://data.cms.gov/provider-data/api/1/datastore/query/{dataset_id}/0"
+    params = {
+        "limit": PAGE_SIZE,
+        "offset": offset,
+        "format": "csv",
+    }
+    response = client.get(url, params=params)
+    response.raise_for_status()
+    return response.text
+
+
+def download_paginated(dataset_id: str, dest: Path, source_name: str) -> bool:
+    """Download a complete CMS dataset via paginated CSV requests."""
     headers = {
         "User-Agent": USER_AGENT,
         "Accept": "text/csv,application/csv,*/*",
     }
 
     try:
-        console.print(f"  Downloading [cyan]{source_name}[/cyan]...")
-        with httpx.Client(timeout=120.0, follow_redirects=True) as client:
-            response = client.get(url, headers=headers)
-            response.raise_for_status()
+        with httpx.Client(timeout=120.0, follow_redirects=True, headers=headers) as client:
+            # Get total count
+            total = _get_total_count(dataset_id, client)
+            console.print(f"  Downloading [cyan]{source_name}[/cyan] ({total:,} records)...")
+
+            if total == 0:
+                console.print(f"  [yellow]⚠[/yellow] {source_name}: 0 records found")
+                return False
 
             dest.parent.mkdir(parents=True, exist_ok=True)
-            dest.write_bytes(response.content)
+            header_written = False
+            rows_downloaded = 0
 
-            size_mb = len(response.content) / (1024 * 1024)
-            console.print(f"  [green]✓[/green] {source_name}: {size_mb:.1f} MB saved to {dest.name}")
+            with open(dest, "w", newline="") as outfile:
+                offset = 0
+                while offset < total:
+                    page_csv = _download_page(dataset_id, offset, client)
+                    reader = csv.reader(io.StringIO(page_csv))
+
+                    for i, row in enumerate(reader):
+                        if i == 0:  # Header row
+                            if not header_written:
+                                outfile.write(",".join(f'"{c}"' for c in row) + "\n")
+                                header_written = True
+                            continue
+                        outfile.write(",".join(f'"{c}"' for c in row) + "\n")
+                        rows_downloaded += 1
+
+                    offset += PAGE_SIZE
+                    # Progress update every few pages
+                    pct = min(100, 100 * rows_downloaded / total)
+                    console.print(f"    {rows_downloaded:,}/{total:,} ({pct:.0f}%)", end="\r")
+
+                    # Rate limiting
+                    time.sleep(DELAY_SECONDS)
+
+            size_mb = dest.stat().st_size / (1024 * 1024)
+            console.print(f"  [green]✓[/green] {source_name}: {rows_downloaded:,} records, {size_mb:.1f} MB")
             return True
 
     except httpx.HTTPStatusError as e:
@@ -90,13 +142,8 @@ def download_source(source_key: str, force: bool = False) -> bool:
         console.print(f"  [yellow]⟳[/yellow] {source['name']}: cached (use --force to re-download)")
         return True
 
-    url = source.get("download_url", source["url"])
-    success = download_csv(url, cache_path, source["name"])
-
-    if success:
-        time.sleep(DELAY_SECONDS)
-
-    return success
+    dataset_id = source["dataset_id"]
+    return download_paginated(dataset_id, cache_path, source["name"])
 
 
 def download_all(force: bool = False) -> dict:

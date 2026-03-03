@@ -55,14 +55,14 @@ class TestColumnMaps:
 
     def test_all_maps_include_provider_number(self):
         for source_key, col_map in COLUMN_MAPS.items():
-            assert "federal_provider_number" in col_map, (
-                f"{source_key} missing federal_provider_number"
+            assert "federal_provider_number" in col_map.values(), (
+                f"{source_key} missing federal_provider_number in mapped values"
             )
 
     def test_provider_info_has_rating_fields(self):
-        pi = COLUMN_MAPS["provider_info"]
-        assert "overall_rating" in pi
-        assert "staffing_rating" in pi
+        pi_values = set(COLUMN_MAPS["provider_info"].values())
+        assert "overall_rating" in pi_values
+        assert "staffing_rating" in pi_values
 
 
 class TestExtractSource:

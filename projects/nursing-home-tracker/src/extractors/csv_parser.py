@@ -18,86 +18,84 @@ PROJECT_ROOT = Path(__file__).parent.parent.parent
 RAW_DIR = PROJECT_ROOT / "data" / "raw"
 
 
-# CMS CSV column name → our schema field name
-# CMS datasets have inconsistent naming; this normalizes them.
+# Actual CMS CSV column name → our schema field name
+# Maps the exact CMS column headers (as they appear in downloaded CSVs)
+# to our normalized Pydantic schema field names.
 COLUMN_MAPS = {
     "provider_info": {
-        "federal_provider_number": "federal_provider_number",
-        "provider_name": "provider_name",
-        "provider_address": "provider_address",
-        "provider_city": "provider_city",
-        "provider_state": "provider_state",
-        "provider_zip_code": "provider_zip_code",
-        "provider_county_name": "provider_county_name",
-        "provider_phone_number": "provider_phone_number",
-        "ownership_type": "ownership_type",
-        "number_of_certified_beds": "number_of_certified_beds",
-        "number_of_residents_in_certified_beds": "number_of_residents_in_certified_beds",
-        "provider_type": "provider_type",
-        "legal_business_name": "legal_business_name",
-        "overall_rating": "overall_rating",
-        "health_inspection_rating": "health_inspection_rating",
-        "staffing_rating": "staffing_rating",
-        "quality_measure_rating": "quality_measure_rating",
-        "total_weighted_health_survey_score": "total_weighted_health_survey_score",
-        "number_of_facility_reported_incidents": "number_of_facility_reported_incidents",
-        "number_of_substantiated_complaints": "number_of_substantiated_complaints",
-        "number_of_fines": "number_of_fines",
-        "total_amount_of_fines_in_dollars": "total_amount_of_fines_in_dollars",
-        "number_of_payment_denials": "number_of_payment_denials",
-        "total_number_of_penalties": "total_number_of_penalties",
+        "CMS Certification Number (CCN)": "federal_provider_number",
+        "Provider Name": "provider_name",
+        "Provider Address": "provider_address",
+        "City/Town": "provider_city",
+        "State": "provider_state",
+        "ZIP Code": "provider_zip_code",
+        "County/Parish": "provider_county_name",
+        "Telephone Number": "provider_phone_number",
+        "Ownership Type": "ownership_type",
+        "Number of Certified Beds": "number_of_certified_beds",
+        "Average Number of Residents per Day": "number_of_residents_in_certified_beds",
+        "Provider Type": "provider_type",
+        "Legal Business Name": "legal_business_name",
+        "Overall Rating": "overall_rating",
+        "Health Inspection Rating": "health_inspection_rating",
+        "Staffing Rating": "staffing_rating",
+        "QM Rating": "quality_measure_rating",
+        "Total Weighted Health Survey Score": "total_weighted_health_survey_score",
+        "Number of Fines": "number_of_fines",
+        "Total Amount of Fines in Dollars": "total_amount_of_fines_in_dollars",
+        "Number of Payment Denials": "number_of_payment_denials",
+        "Total Number of Penalties": "total_number_of_penalties",
     },
     "health_deficiencies": {
-        "federal_provider_number": "federal_provider_number",
-        "provider_name": "provider_name",
-        "provider_state": "provider_state",
-        "survey_date": "survey_date",
-        "survey_type": "survey_type",
-        "deficiency_tag_number": "deficiency_tag_number",
-        "deficiency_description": "deficiency_description",
-        "scope_severity_code": "scope_severity_code",
-        "deficiency_corrected": "deficiency_corrected",
-        "correction_date": "correction_date",
-        "inspection_cycle": "inspection_cycle",
+        "CMS Certification Number (CCN)": "federal_provider_number",
+        "Provider Name": "provider_name",
+        "State": "provider_state",
+        "Survey Date": "survey_date",
+        "Survey Type": "survey_type",
+        "Deficiency Tag Number": "deficiency_tag_number",
+        "Deficiency Description": "deficiency_description",
+        "Scope Severity Code": "scope_severity_code",
+        "Deficiency Corrected": "deficiency_corrected",
+        "Correction Date": "correction_date",
+        "Inspection Cycle": "inspection_cycle",
     },
     "penalties": {
-        "federal_provider_number": "federal_provider_number",
-        "provider_name": "provider_name",
-        "provider_state": "provider_state",
-        "penalty_type": "penalty_type",
-        "fine_amount": "fine_amount",
-        "penalty_date": "penalty_date",
-        "penalty_status": "penalty_status",
+        "CMS Certification Number (CCN)": "federal_provider_number",
+        "Provider Name": "provider_name",
+        "State": "provider_state",
+        "Penalty Type": "penalty_type",
+        "Fine Amount": "fine_amount",
+        "Penalty Date": "penalty_date",
     },
     "ownership": {
-        "federal_provider_number": "federal_provider_number",
-        "provider_name": "provider_name",
-        "provider_state": "provider_state",
-        "owner_name": "owner_name",
-        "owner_type": "owner_type",
-        "owner_percentage": "owner_percentage",
-        "role_description": "role_description",
-        "association_date": "association_date",
+        "CMS Certification Number (CCN)": "federal_provider_number",
+        "Provider Name": "provider_name",
+        "State": "provider_state",
+        "Owner Name": "owner_name",
+        "Owner Type": "owner_type",
+        "Ownership Percentage": "owner_percentage",
+        "Role played by Owner or Manager in Facility": "role_description",
+        "Association Date": "association_date",
     },
     "survey_summary": {
-        "federal_provider_number": "federal_provider_number",
-        "provider_name": "provider_name",
-        "provider_state": "provider_state",
-        "survey_date": "survey_date",
-        "survey_type": "survey_type",
-        "total_number_of_health_deficiencies": "total_number_of_health_deficiencies",
-        "total_number_of_fire_safety_deficiencies": "total_number_of_fire_safety_deficiencies",
+        "CMS Certification Number (CCN)": "federal_provider_number",
+        "Provider Name": "provider_name",
+        "State": "provider_state",
+        "Health Survey Date": "survey_date",
+        "Inspection Cycle": "survey_type",
+        "Total Number of Health Deficiencies": "total_number_of_health_deficiencies",
+        "Total Number of Fire Safety Deficiencies": "total_number_of_fire_safety_deficiencies",
     },
     "quality_measures": {
-        "federal_provider_number": "federal_provider_number",
-        "provider_name": "provider_name",
-        "provider_state": "provider_state",
-        "measure_code": "measure_code",
-        "measure_description": "measure_description",
-        "measure_period": "measure_period",
-        "score": "score",
-        "footnote": "footnote",
-        "used_in_quality_measure_five_star_rating": "used_in_quality_measure_five_star_rating",
+        "CMS Certification Number (CCN)": "federal_provider_number",
+        "Provider Name": "provider_name",
+        "State": "provider_state",
+        "Measure Code": "measure_code",
+        "Measure Description": "measure_description",
+        "Measure Period": "measure_period",
+        "Adjusted Score": "score",
+        "Footnote for Score": "footnote",
+        "Used in Quality Measure Five Star Rating": "used_in_quality_measure_five_star_rating",
     },
 }
 
@@ -168,12 +166,19 @@ def extract_source(source_key: str) -> list[dict]:
         return []
 
     # Build column name mapping from CSV columns to our field names
-    normalized_cols = {_normalize_column_name(col): col for col in df.columns}
+    # First try exact match, then try normalized match
     col_mapping = {}
+    normalized_cols = {_normalize_column_name(col): col for col in df.columns}
     for csv_field, our_field in column_map.items():
-        original_col = _find_column_match(normalized_cols, csv_field)
-        if original_col:
-            col_mapping[original_col] = our_field
+        if csv_field in df.columns:
+            # Exact match on the CMS column name
+            col_mapping[csv_field] = our_field
+        else:
+            # Fallback: try normalized name matching
+            norm_key = _normalize_column_name(csv_field)
+            original_col = _find_column_match(normalized_cols, norm_key)
+            if original_col:
+                col_mapping[original_col] = our_field
 
     records = []
     errors = 0
