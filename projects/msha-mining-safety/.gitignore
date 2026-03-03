@@ -1,0 +1,11 @@
+data/raw/*.zip
+data/raw/*.txt
+data/*.db
+data/*.db-wal
+data/*.db-shm
+data/exports/
+data/cache/
+__pycache__/
+*.pyc
+.pytest_cache/
+*.egg-info/

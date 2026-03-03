@@ -206,5 +206,29 @@
     "status": "rejected",
     "rejection_reason": "PitchBook, Preqin, Burgiss dominate. Most universities block fund-level disclosure. Too similar to Pension Fund Tracker.",
     "research_notes": "Only 5-10 endowments disclose fund names."
+  },
+  {
+    "idea": "MSHA Mining Safety & Enforcement Tracker — Cross-linked mine inspections, violations, penalties, accidents/injuries, and operator profiles from MSHA Open Government datasets",
+    "score": 24,
+    "score_breakdown": {"data_gap": 4, "buyer_clarity": 4, "technical_feasibility": 5, "cross_linking": 5, "scale": 3, "credibility": 2},
+    "status": "accepted",
+    "rejection_reason": null,
+    "research_notes": "Researched 2026-03-04. 20+ bulk datasets freely downloadable from arlweb.msha.gov. ALL tested and working (HTTP 200). Core datasets: Mines (91,587), Accidents (271,621), Inspections (1,137,929), Violations (3,055,941), Assessed Violations (2,989,669), Civil Penalties (477,094). Total ~8M+ records. $1.8B in proposed penalties, 1,194 fatalities, 2,456 permanent disabilities. MINE_ID is universal FK across all datasets. Pipe-delimited text in ZIP files, headers included. No auth, no CAPTCHA, no bot protection. No cross-linked product exists. Full brief at state/research_briefs/msha_mining_safety.md."
+  },
+  {
+    "idea": "FAA/NTSB Aviation Safety & Accident Tracker",
+    "score": 19,
+    "score_breakdown": {"data_gap": 3, "buyer_clarity": 3, "technical_feasibility": 4, "cross_linking": 4, "scale": 3, "credibility": 2},
+    "status": "rejected",
+    "rejection_reason": "Below 20-point threshold. Cirium and FlightAware already serve the aviation data market. NTSB data available as Access DB download but limited cross-linking value. Aviation safety buyers already well-served by paid products.",
+    "research_notes": "NTSB provides avall.zip (Access DB) with all accidents since 1982. CAROL query tool enables CSV export. FAA SDR data less accessible. Competition from Cirium, FlightAware, AviationDB is strong."
+  },
+  {
+    "idea": "FDA/USDA Food Safety Inspection & Enforcement Tracker",
+    "score": 18,
+    "score_breakdown": {"data_gap": 2, "buyer_clarity": 3, "technical_feasibility": 5, "cross_linking": 3, "scale": 3, "credibility": 2},
+    "status": "rejected",
+    "rejection_reason": "Below 20-point threshold. openFDA already provides structured JSON APIs for food enforcement/recall data (2004-present). Data is already well-structured and searchable. Cross-linking adds limited incremental value. Competition from openFDA itself makes this non-defensible.",
+    "research_notes": "openFDA food enforcement API tested — weekly updates, searchable. FSIS inspection data also available. But the data gap is minimal since openFDA is already structured and free."
   }
 ]

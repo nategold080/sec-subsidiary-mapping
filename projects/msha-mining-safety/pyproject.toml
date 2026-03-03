@@ -1,0 +1,9 @@
+[project]
+name = "msha-mining-safety"
+version = "1.0.0"
+description = "MSHA Mining Safety & Enforcement Tracker"
+requires-python = ">=3.12"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]

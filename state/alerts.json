@@ -82,5 +82,12 @@
     "message": "CPSC Product Safety Tracker is complete and ready for review. 9,683 recalls + 65,776 consumer incidents + 2,041,090 NEISS ER injuries (76.2M national estimate) + 395 penalties ($363M fines) + 13,902 import violations. 45,563 cross-links across 4 linking functions. 24,715 manufacturer compliance profiles — 14 flagged high/critical risk (Target 0.22, Black & Decker 0.25, Whirlpool 3,578 incidents). Polaris leads with 55 recalls and $27.3M fines. China accounts for 52% of import violations. 116 tests passing. 3 problems resolved. 8-section Streamlit dashboard, exports (CSV/JSON/Excel/Markdown), methodology doc, outreach package (20 targets, 3 email templates, pitch one-pager) all complete. See projects/cpsc-product-safety/ for full deliverables.",
     "timestamp": "2026-03-04T03:00:00Z",
     "acknowledged": false
+  },
+  {
+    "project_id": "msha-mining-safety",
+    "type": "client-ready",
+    "message": "MSHA Mining Safety & Enforcement Tracker is complete and ready for review. 7.7M+ records across 6 MSHA datasets: 91,587 mines (6,590 active), 271,621 accidents (1,194 fatalities, 2,456 permanent disabilities), 1,137,928 inspections, 3,055,890 violations, 2,989,669 assessed violations, 93,565 civil penalties. $1.8B in proposed penalties, $1.25B paid. 49,673 operator safety profiles with composite scoring — 1,024 classified HIGH or CRITICAL risk. 55 states/territories, 2000-2026 coverage. 93 tests passing. 3 problems resolved. 8-section Streamlit dashboard, exports (CSV/JSON/Excel/Markdown), methodology doc, outreach package (17 targets, 3 email templates, pitch one-pager) all complete. See projects/msha-mining-safety/ for full deliverables.",
+    "timestamp": "2026-03-04T04:00:00Z",
+    "acknowledged": false
   }
 ]
