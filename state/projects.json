@@ -18,17 +18,17 @@
   {
     "id": "puc-rate-tracker",
     "name": "State PUC Rate Case Tracker",
-    "status": "building",
+    "status": "client-ready",
     "score": 23,
     "description": "Structured database of utility rate case filings and decisions across state public utility commissions",
-    "data_sources": ["PA PUC", "CA CPUC", "OR PUC", "IN IURC", "WA UTC"],
+    "data_sources": ["OR PUC (live scraped)", "PA PUC", "CA CPUC", "IN IURC", "WA UTC"],
     "target_buyers": ["Clean energy companies (NextEra, Enel, AES)", "Energy consulting firms (Huron, CRA)", "Consumer advocacy (AARP, NCLC)", "Environmental groups (NRDC, Sierra Club)", "Law firms (Van Ness Feldman)"],
     "target_researchers": ["Berkeley Energy Institute", "MIT CEEPR", "Resources for the Future"],
-    "record_count": 44,
+    "record_count": 621,
     "test_count": 186,
-    "problems_resolved": 0,
+    "problems_resolved": 7,
     "created_at": "2026-03-02T00:00:00Z",
     "last_updated": "2026-03-03T00:00:00Z",
-    "notes": "Core modules complete: schemas, scrapers (5 states), extractors, normalization, validation, storage, exports, dashboard, CLI. 186 tests passing. 44 seeded rate cases. Need: real scraper data, outreach package, methodology doc."
+    "notes": "CLIENT-READY. 621 rate cases (582 real from OR PUC + 39 from PA/CA/IN/WA). 467 unique utilities across 5 states. Date range 1990-2024. $23B total requested, $10.5B approved revenue. Avg quality 0.670, 100% above threshold. 186 tests passing. 7 problems resolved. Outreach (17 targets, 3 templates), methodology doc, exports (CSV/JSON/Excel/Markdown), dashboard all complete."
   }
 ]

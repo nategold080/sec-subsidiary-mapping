@@ -46,9 +46,9 @@ def minimal_case():
 
 class TestScoreRateCase:
     def test_complete_case_high_score(self, complete_case):
-        result = score_rate_case(complete_case, document_count=3)
+        result = score_rate_case(complete_case)
         assert result["quality_score"] >= 0.9
-        assert len(result["issues"]) == 0
+        assert len(result["issues"]) <= 1  # may lack source_url
 
     def test_minimal_case_low_score(self, minimal_case):
         result = score_rate_case(minimal_case)
@@ -94,10 +94,12 @@ class TestScoreRateCase:
         score_without = score_rate_case(case_without)["quality_score"]
         assert score_with > score_without
 
-    def test_documents_contribute(self, complete_case):
-        score_0 = score_rate_case(complete_case, document_count=0)["quality_score"]
-        score_3 = score_rate_case(complete_case, document_count=3)["quality_score"]
-        assert score_3 > score_0
+    def test_source_url_contributes(self, complete_case):
+        case_with = dict(complete_case, source_url="https://example.com")
+        case_without = dict(complete_case)
+        score_with = score_rate_case(case_with)["quality_score"]
+        score_without = score_rate_case(case_without)["quality_score"]
+        assert score_with > score_without
 
     def test_active_case_partial_decision_credit(self):
         case = {
@@ -106,7 +108,7 @@ class TestScoreRateCase:
             "status": "active",
         }
         result = score_rate_case(case)
-        assert result["component_scores"]["has_decision_data"] == 0.5
+        assert result["component_scores"]["has_decision_date"] == 0.5
 
     def test_weights_sum_to_one(self):
         total = sum(WEIGHTS.values())
@@ -115,7 +117,7 @@ class TestScoreRateCase:
     def test_issues_list_populated(self, minimal_case):
         result = score_rate_case(minimal_case)
         assert len(result["issues"]) > 0
-        assert any("filing date" in issue.lower() for issue in result["issues"])
+        assert any("filing" in issue.lower() or "revenue" in issue.lower() for issue in result["issues"])
 
 
 class TestValidateRecord:

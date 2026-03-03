@@ -1,14 +1,14 @@
 # PUC Rate Case Tracker - Data Summary
 
-*Generated: 2026-03-03 03:39 UTC*
+*Generated: 2026-03-03 04:02 UTC*
 *Built by Nathan Goldberg | nathanmauricegoldberg@gmail.com*
 
 ## Overview
 
-- **Total Rate Cases:** 44
-- **Unique Utilities:** 28
+- **Total Rate Cases:** 621
+- **Unique Utilities:** 467
 - **States Covered:** 5
-- **Date Range:** 2015-03-27 to 2024-04-28
+- **Date Range:** 1990-01-02 to 2024-04-28
 
 ## Cases by State
 
@@ -16,7 +16,7 @@
 |-------|-------|
 | CA | 10 |
 | IN | 5 |
-| OR | 5 |
+| OR | 582 |
 | PA | 19 |
 | WA | 5 |
 
@@ -24,23 +24,23 @@
 
 | Case Type | Count |
 |-----------|-------|
-| general_rate_case | 44 |
+| general_rate_case | 621 |
 
 ## Financial Summary
 
-- **Cases with Revenue Data:** 44
-- **Total Revenue Requested:** $23,788.6M
-- **Total Revenue Approved:** $10,930.7M
-- **Average Requested:** $540.6M
-- **Average Approved:** $287.7M
-- **Average ROE:** 10.34%
+- **Cases with Revenue Data:** 39
+- **Total Revenue Requested:** $23,022.0M
+- **Total Revenue Approved:** $10,488.2M
+- **Average Requested:** $590.3M
+- **Average Approved:** $308.5M
+- **Average ROE:** 10.39%
 
 ## Data Quality
 
-- **Average Quality Score:** 0.886
-- **Min Score:** 0.800
-- **Max Score:** 0.900
-- **Above Threshold (>=0.6):** 44
+- **Average Quality Score:** 0.670
+- **Min Score:** 0.600
+- **Max Score:** 1.000
+- **Above Threshold (>=0.6):** 621
 
 ## Largest Rate Cases by Revenue Request
 
@@ -60,7 +60,7 @@
 | 46038 | Indianapolis Power & Light Com | IN | $358.0 | Pending | active |
 | 45564 | Indiana Michigan Power Company | IN | $339.0 | $189.0 | decided |
 | R-2023-3037933 | PPL Electric Utilities Corpora | PA | $338.8 | $174.6 | decided |
-| UE-394 | PacifiCorp dba Pacific Power | OR | $312.0 | $185.0 | decided |
+| R-2024-3046894 | PECO Energy Company | PA | $245.6 | Pending | active |
 
 ---
 

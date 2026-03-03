@@ -1,15 +1,18 @@
 """Quality scoring for PUC Rate Case records.
 
 Each rate case record is scored 0.0 to 1.0 based on data completeness
-and validity. Weights align with the CLAUDE.md quality scoring formula.
+and validity. Components and weights per CLAUDE.md specification.
 
 Quality Score Weights:
-  - has_filing_dates: 0.20
-  - has_financial_data: 0.25
-  - has_decision_data: 0.20
-  - has_utility_info: 0.15
-  - has_documents: 0.10
-  - has_status: 0.10
+  - has_docket_number: 0.15
+  - has_utility_name_resolved: 0.15
+  - has_case_type_classified: 0.10
+  - has_filing_date: 0.10
+  - has_decision_date: 0.10
+  - has_revenue_request_amount: 0.15
+  - has_revenue_approved_amount: 0.15
+  - has_case_status: 0.05
+  - has_source_url: 0.05
 
 Also performs referential integrity checks and data range validation.
 """
@@ -27,12 +30,15 @@ console = Console()
 # --- Quality Score Weights ---
 
 WEIGHTS = {
-    "has_filing_dates": 0.20,
-    "has_financial_data": 0.25,
-    "has_decision_data": 0.20,
-    "has_utility_info": 0.15,
-    "has_documents": 0.10,
-    "has_status": 0.10,
+    "has_docket_number": 0.15,
+    "has_utility_name_resolved": 0.15,
+    "has_case_type_classified": 0.10,
+    "has_filing_date": 0.10,
+    "has_decision_date": 0.10,
+    "has_revenue_request_amount": 0.15,
+    "has_revenue_approved_amount": 0.15,
+    "has_case_status": 0.05,
+    "has_source_url": 0.05,
 }
 
 
@@ -52,86 +58,74 @@ def score_rate_case(record: dict[str, Any], document_count: int = 0) -> dict:
     components = {}
     issues = []
 
-    # 1. Filing dates (0.20)
-    filing_date_score = 0.0
+    # 1. Docket number (0.15)
+    if record.get("docket_number"):
+        components["has_docket_number"] = 1.0
+    else:
+        components["has_docket_number"] = 0.0
+        issues.append("Missing docket number")
+
+    # 2. Utility name resolved (0.15)
+    if record.get("canonical_utility_name"):
+        components["has_utility_name_resolved"] = 1.0
+    elif record.get("utility_name"):
+        components["has_utility_name_resolved"] = 0.7
+    else:
+        components["has_utility_name_resolved"] = 0.0
+        issues.append("Missing utility name")
+
+    # 3. Case type classified (0.10)
+    case_type = record.get("case_type", "unknown")
+    if case_type and case_type != "unknown":
+        components["has_case_type_classified"] = 1.0
+    else:
+        components["has_case_type_classified"] = 0.0
+        issues.append("Case type not classified")
+
+    # 4. Filing date (0.10)
     if record.get("filing_date"):
-        filing_date_score = 1.0
+        components["has_filing_date"] = 1.0
     else:
+        components["has_filing_date"] = 0.0
         issues.append("Missing filing date")
-    components["has_filing_dates"] = filing_date_score
 
-    # 2. Financial data (0.25)
-    financial_score = 0.0
-    financial_fields = [
-        "requested_revenue_change",
-        "approved_revenue_change",
-        "rate_base",
-        "return_on_equity",
-    ]
-    filled = sum(1 for f in financial_fields if record.get(f) is not None)
-    if filled > 0:
-        financial_score = min(filled / 2.0, 1.0)  # 2+ fields = full score
-    else:
-        issues.append("No financial data (revenue/rate base/ROE)")
-    components["has_financial_data"] = financial_score
-
-    # 3. Decision data (0.20)
-    decision_score = 0.0
+    # 5. Decision date (0.10)
     if record.get("decision_date"):
-        decision_score = 0.6
-        if record.get("approved_revenue_change") is not None:
-            decision_score = 1.0
-        elif record.get("approved_rate_change_pct") is not None:
-            decision_score = 0.8
+        components["has_decision_date"] = 1.0
     else:
-        # If case is still active, not having a decision date is expected
         status = record.get("status", "")
         if status in ("active", "filed"):
-            decision_score = 0.5  # Partial credit for active cases
+            components["has_decision_date"] = 0.5
         else:
+            components["has_decision_date"] = 0.0
             issues.append("Missing decision date")
-    components["has_decision_data"] = decision_score
 
-    # 4. Utility info (0.15)
-    utility_score = 0.0
-    utility_fields_present = 0
-    if record.get("utility_name"):
-        utility_fields_present += 1
-    if record.get("canonical_utility_name"):
-        utility_fields_present += 1
-    if record.get("utility_type") and record["utility_type"] != "unknown":
-        utility_fields_present += 1
-    if record.get("case_type") and record["case_type"] != "unknown":
-        utility_fields_present += 1
-
-    if utility_fields_present >= 3:
-        utility_score = 1.0
-    elif utility_fields_present == 2:
-        utility_score = 0.7
-    elif utility_fields_present == 1:
-        utility_score = 0.4
+    # 6. Revenue request amount (0.15)
+    if record.get("requested_revenue_change") is not None:
+        components["has_revenue_request_amount"] = 1.0
     else:
-        issues.append("Missing utility information")
-    components["has_utility_info"] = utility_score
+        components["has_revenue_request_amount"] = 0.0
+        issues.append("No revenue request amount")
 
-    # 5. Documents (0.10)
-    doc_score = 0.0
-    if document_count >= 3:
-        doc_score = 1.0
-    elif document_count >= 1:
-        doc_score = 0.5
+    # 7. Revenue approved amount (0.15)
+    if record.get("approved_revenue_change") is not None:
+        components["has_revenue_approved_amount"] = 1.0
     else:
-        # No linked documents is common in seed data
-        pass
-    components["has_documents"] = doc_score
+        components["has_revenue_approved_amount"] = 0.0
+        issues.append("No revenue approved amount")
 
-    # 6. Status (0.10)
-    status_score = 0.0
+    # 8. Case status (0.05)
     if record.get("status") and record["status"] != "unknown":
-        status_score = 1.0
+        components["has_case_status"] = 1.0
     else:
+        components["has_case_status"] = 0.0
         issues.append("Missing or unknown case status")
-    components["has_status"] = status_score
+
+    # 9. Source URL (0.05)
+    if record.get("source_url"):
+        components["has_source_url"] = 1.0
+    else:
+        components["has_source_url"] = 0.0
 
     # Compute weighted total
     quality_score = sum(

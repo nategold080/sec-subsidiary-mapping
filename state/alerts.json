@@ -5,5 +5,12 @@
     "message": "Nursing Home Inspection & Deficiency Tracker is complete and ready for review. 730,114 records from 6 CMS datasets covering 14,710 facilities across 53 states. 506 PE-owned and 184 REIT-owned facilities identified. $480M in tracked fines. Average quality score 0.918 (99.8% above threshold). 16 outreach targets identified across research, media, client, and employer categories. Dashboard, exports (CSV/JSON/Excel/Markdown), and methodology doc all ready. See projects/nursing-home-tracker/ for full deliverables.",
     "timestamp": "2026-03-03T00:00:00Z",
     "acknowledged": false
+  },
+  {
+    "project_id": "puc-rate-tracker",
+    "type": "client-ready",
+    "message": "State PUC Rate Case Tracker is complete and ready for review. 621 rate cases (582 real from OR PUC EDOCKETS + 39 from PA/CA/IN/WA) covering 467 utilities across 5 states. Date range 1990-2024. $23B total revenue requested, $10.5B approved. Average quality score 0.670 (100% above threshold). 186 tests passing, 7 problems resolved. 17 outreach targets identified across research, media, client, and employer categories. Dashboard, exports (CSV/JSON/Excel/Markdown), methodology doc, and pitch materials all ready. See projects/puc-rate-tracker/ for full deliverables.",
+    "timestamp": "2026-03-03T00:00:00Z",
+    "acknowledged": false
   }
 ]

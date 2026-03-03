@@ -33,11 +33,11 @@
   },
   {
     "idea": "FDA MAUDE Medical Device Adverse Event Tracker",
-    "score": 22,
-    "score_breakdown": {"data_gap": 2, "buyer_clarity": 3, "technical_feasibility": 5, "cross_linking": 4, "scale": 5, "credibility": 3},
+    "score": 19,
+    "score_breakdown": {"data_gap": 2, "buyer_clarity": 3, "technical_feasibility": 5, "cross_linking": 4, "scale": 5, "credibility": 2},
     "status": "rejected",
-    "rejection_reason": "Data already structured via openFDA API. Redica Systems serves this market. High feasibility indicates low defensibility.",
-    "research_notes": "openFDA provides free JSON API with bulk downloads."
+    "rejection_reason": "Deep research confirms prior rejection. openFDA provides free structured JSON APIs for all 9 device endpoints (MAUDE, 510k, PMA, recalls, enforcement, classification, UDI, registrations, COVID serology) with bulk downloads. DeviceEvents (17.4M reports, serves hedge funds/law firms/hospitals), Redica Systems (200+ customers, entity resolution across all FDA databases, venture-funded), Clarivate, and IQVIA all serve this market. Cross-linking value is real (4/5) but Redica already does manufacturer entity resolution across all databases. The core Data Factory pattern requires structuring unstructured data — here the FDA has already done the structuring. High feasibility (5/5) signals low defensibility. Credibility revised down to 2/5 since MAUDE is already extensively used in academic research (13% of postmarket surveillance studies per 2024 scoping review). Full brief at state/research_briefs/fda_maude.md.",
+    "research_notes": "Researched 2026-03-02. openFDA provides 9 device API endpoints all with bulk JSON downloads. MAUDE has 135 fields across 6 file types (Master Event, Device, Patient, Text, Device Problems, Problem Codes). Key cross-linking opportunity: manufacturer entity resolution across MAUDE + 510(k) + recalls + warning letters + UDI. But Redica Systems (redica.com) already does this with Zingg.ai entity resolution, 200+ paying customers, and dedicated engineering. DeviceEvents (deviceevents.com) serves litigation attorneys and hedge funds with 17.4M+ report search. Complizen, Clarivate, IQVIA also compete. Potential buyers: litigation law firms (Troutman Pepper, Greenberg Traurig), hedge funds (Point72 known to use MAUDE data), device manufacturers, hospital systems. All segments already served by incumbents. Academic interest is high but researchers access MAUDE directly via openFDA — no need for intermediary. Score revised down from 22 to 19: credibility dropped from 3 to 2 (not novel enough for academic collaboration). Below 20-point threshold. Do not pursue."
   },
   {
     "idea": "OSHA Workplace Inspection & Citation Tracker",
