@@ -1,0 +1,42 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# IDEs
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Data files (keep structure, ignore large files)
+*.db
+*.sqlite
+*.sqlite3
+data/raw/
+data/cache/
+
+# Sensitive
+.env
+*.key
+credentials.*
+
+# Reference projects (symlinked, don't track)
+references/existing_projects/
+
+# Temp
+*.tmp
+*.log
