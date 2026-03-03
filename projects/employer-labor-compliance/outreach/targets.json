@@ -1,0 +1,162 @@
+[
+  {
+    "name": "Littler Mendelson",
+    "title": "Various Partners",
+    "organization": "Littler Mendelson P.C.",
+    "category": "potential_client",
+    "relevance": "Largest employment and labor law firm globally (1,700+ attorneys). Cross-agency employer compliance data directly supports labor litigation defense, due diligence for M&A, and client risk assessment.",
+    "priority": "high"
+  },
+  {
+    "name": "Jackson Lewis",
+    "title": "Various Partners",
+    "organization": "Jackson Lewis P.C.",
+    "category": "potential_client",
+    "relevance": "Top employment law firm (950+ attorneys). Multi-agency violation profiles help identify employer risk patterns for preventive counseling and litigation defense.",
+    "priority": "high"
+  },
+  {
+    "name": "Bloomberg Law - Labor & Employment",
+    "title": "Director of Data Products",
+    "organization": "Bloomberg Industry Group (BNA)",
+    "category": "potential_client",
+    "relevance": "Bloomberg Law's labor practice area aggregates enforcement data. Cross-linked employer profiles across WHD/OSHA/NLRB fill a gap in their existing labor analytics offering.",
+    "priority": "high"
+  },
+  {
+    "name": "Compliance.ai / Ascent",
+    "title": "VP of Data",
+    "organization": "Compliance.ai",
+    "category": "potential_client",
+    "relevance": "RegTech company automating regulatory compliance tracking. Cross-agency employer violation data is directly relevant for labor compliance monitoring products.",
+    "priority": "high"
+  },
+  {
+    "name": "Moody's ESG Solutions",
+    "title": "Director of Data Products",
+    "organization": "Moody's Corporation",
+    "category": "potential_client",
+    "relevance": "ESG ratings increasingly incorporate labor practices. Structured NLRB/OSHA/WHD violation data provides quantitative labor governance signals for ESG scoring.",
+    "priority": "high"
+  },
+  {
+    "name": "Glassdoor / Indeed",
+    "title": "VP of Data Science",
+    "organization": "Indeed / Glassdoor",
+    "category": "potential_client",
+    "relevance": "Job platforms could integrate labor violation data into employer profiles. Workers benefit from seeing OSHA fatality records, NLRB unfair labor practice filings, and wage theft history alongside reviews.",
+    "priority": "medium"
+  },
+  {
+    "name": "Prof. David Weil",
+    "title": "Professor and Former DOL Wage & Hour Administrator",
+    "organization": "Brandeis University - Heller School",
+    "category": "research_collaborator",
+    "relevance": "Former Obama-era WHD Administrator, leading scholar on the 'fissured workplace.' His research directly uses DOL enforcement data. Cross-linked NLRB data adds a new dimension to his work on employer fragmentation.",
+    "priority": "high"
+  },
+  {
+    "name": "Economic Policy Institute (EPI)",
+    "title": "Research Director",
+    "organization": "Economic Policy Institute",
+    "category": "research_collaborator",
+    "relevance": "EPI publishes extensively on wage theft, worker safety, and labor rights using DOL enforcement data. Structured cross-agency database would enhance their policy research and reports.",
+    "priority": "high"
+  },
+  {
+    "name": "National Employment Law Project (NELP)",
+    "title": "Senior Researcher",
+    "organization": "NELP",
+    "category": "research_collaborator",
+    "relevance": "NELP advocates for worker rights using enforcement data. Cross-agency employer profiles showing repeat violators across WHD/OSHA/NLRB directly support their advocacy campaigns.",
+    "priority": "high"
+  },
+  {
+    "name": "Prof. Matthew Johnson",
+    "title": "Assistant Professor of Public Policy",
+    "organization": "Duke University - Sanford School",
+    "category": "research_collaborator",
+    "relevance": "Researches workplace safety regulation and OSHA enforcement effectiveness. Cross-linked OSHA/NLRB data enables research on whether unionized workplaces have fewer safety violations.",
+    "priority": "medium"
+  },
+  {
+    "name": "Noam Scheiber",
+    "title": "Labor & Workplace Reporter",
+    "organization": "The New York Times",
+    "category": "media_contact",
+    "relevance": "Covers labor organizing, worker safety, and employment law. Data showing top repeat labor violators across multiple agencies could drive investigative stories.",
+    "priority": "high"
+  },
+  {
+    "name": "Lauren Kaori Gurley",
+    "title": "Labor Reporter",
+    "organization": "The Washington Post",
+    "category": "media_contact",
+    "relevance": "Covers labor organizing at Amazon, Starbucks, and major employers. NLRB case data cross-linked with OSHA safety records could enhance her reporting on worker treatment.",
+    "priority": "high"
+  },
+  {
+    "name": "ProPublica - Workers",
+    "title": "Various Reporters",
+    "organization": "ProPublica",
+    "category": "media_contact",
+    "relevance": "ProPublica's worker safety coverage uses OSHA data. Cross-linked multi-agency database revealing patterns of employer non-compliance across agencies aligns with their data-driven investigative approach.",
+    "priority": "high"
+  },
+  {
+    "name": "Reveal (Center for Investigative Reporting)",
+    "title": "Data Reporter",
+    "organization": "Reveal / CIR",
+    "category": "media_contact",
+    "relevance": "Reveal has produced award-winning investigations on temp worker safety and Amazon warehouse injuries using OSHA data. Cross-agency compliance profiles add new analytical depth.",
+    "priority": "medium"
+  },
+  {
+    "name": "Paychex / ADP - Compliance",
+    "title": "VP Compliance Solutions",
+    "organization": "Paychex / ADP",
+    "category": "potential_client",
+    "relevance": "Payroll and HR companies advise employers on DOL/OSHA compliance. Cross-agency violation data could power compliance risk assessment tools for their employer clients.",
+    "priority": "medium"
+  },
+  {
+    "name": "MSCI ESG Research",
+    "title": "Director of ESG Data",
+    "organization": "MSCI Inc.",
+    "category": "potential_client",
+    "relevance": "MSCI ESG ratings used by institutional investors. Labor violation data (NLRB unfair labor practices, OSHA fatalities, wage theft) provides quantitative signals for the Social pillar of ESG scores.",
+    "priority": "medium"
+  },
+  {
+    "name": "Occupational Safety & Health Administration (OSHA) - Research",
+    "title": "Director of Enforcement Data",
+    "organization": "US Department of Labor",
+    "category": "strategic_partner",
+    "relevance": "OSHA itself may be interested in cross-linked enforcement data for strategic enforcement targeting. The multi-agency view could inform coordinated enforcement initiatives.",
+    "priority": "low"
+  },
+  {
+    "name": "Clean Yield Asset Management",
+    "title": "Director of Shareholder Advocacy",
+    "organization": "Clean Yield",
+    "category": "potential_client",
+    "relevance": "Shareholder advocacy firm that files resolutions on labor practices. Structured violation data across agencies supports engagement with portfolio companies on worker treatment.",
+    "priority": "medium"
+  },
+  {
+    "name": "Prof. Anna Stansbury",
+    "title": "Assistant Professor",
+    "organization": "MIT Sloan School of Management",
+    "category": "research_collaborator",
+    "relevance": "Researches labor market power and worker bargaining. NLRB case data (union elections, ULP filings) cross-linked with OSHA safety outcomes could support her research on how unionization affects workplace conditions.",
+    "priority": "medium"
+  },
+  {
+    "name": "Ogletree Deakins",
+    "title": "Various Partners",
+    "organization": "Ogletree Deakins Nash Smoak & Stewart",
+    "category": "potential_client",
+    "relevance": "One of the largest labor and employment law firms in the US. Cross-agency compliance data helps their employer clients understand enforcement risk and prepare for regulatory scrutiny.",
+    "priority": "medium"
+  }
+]

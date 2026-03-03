@@ -1,13 +1,17 @@
 # PROBLEMS — Employer Labor Compliance Tracker
 
-## P1: DOL enforcedata.dol.gov migration — OPEN
+## P1: DOL enforcedata.dol.gov migration — OPEN (needs human)
 DOL has migrated from enforcedata.dol.gov to data.dol.gov (JavaScript SPA).
-The old bulk CSV download URLs for WHD and OSHA data now return redirects.
-The new v4 API at apiprod.dol.gov/v4 requires a free API key and doesn't
-yet list WHD or OSHA datasets (only 10 datasets are live, all ILAB/WB/MSHA).
-- **Impact**: Cannot programmatically download WHD or OSHA bulk data
-- **Workaround**: Manual download through data.dol.gov portal, or wait for v4 API
-- **Action needed**: Register for free API key at dataportal.dol.gov/api-keys
+The old bulk CSV download URLs for WHD and OSHA data now return 301 redirects.
+Research confirmed both datasets ARE available on the v4 API:
+- **WHD Enforcement** (Dataset ID 10246): `apiprod.dol.gov/v4/get/WHD/enforcement/json`
+  - 110 columns, concluded compliance actions since FY 2005, updated quarterly
+  - Fields: case_id, trade_nm, legal_name, address, violations by statute (FLSA, SCA, H1B, FMLA, etc.)
+- **OSHA Inspection** (Dataset ID 10313): `apiprod.dol.gov/v4/get/OSHA/inspection/json`
+  - 36 columns, updated daily
+  - Additional tables: Violation (10317), Accident (10310), Accident Injury (10312)
+- **Action needed**: Register for free API key at `dataportal.dol.gov/registration`
+- **Impact**: NLRB-only Phase 1 shipped. WHD + OSHA data for Phase 2 once key obtained.
 
 ## P2: GROUP_CONCAT DISTINCT syntax — DONE
 SQLite bundled with Python 3.12 doesn't support `GROUP_CONCAT(DISTINCT col, sep)`.

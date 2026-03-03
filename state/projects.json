@@ -98,17 +98,17 @@
   {
     "id": "employer-labor-compliance",
     "name": "Employer Labor Compliance Tracker",
-    "status": "building",
+    "status": "client-ready",
     "score": 24,
     "description": "Cross-agency employer violation database linking DOL WHD wage theft, OSHA safety inspections, and NLRB labor relations cases into employer compliance profiles",
-    "data_sources": ["enforcementdata.dol.gov (WHD)", "enforcementdata.dol.gov (OSHA)", "github.com/labordata/nlrb-data"],
-    "target_buyers": ["Littler Mendelson (labor law firm)", "Jackson Lewis (employment law)", "Yelp/Glassdoor", "Moody's ESG", "Bloomberg BNA", "Compliance.ai"],
-    "target_researchers": ["Prof. David Weil (Brandeis)", "EPI (Economic Policy Institute)", "NELP (National Employment Law Project)"],
+    "data_sources": ["github.com/labordata/nlrb-data", "apiprod.dol.gov/v4 (WHD, pending key)", "apiprod.dol.gov/v4 (OSHA, pending key)"],
+    "target_buyers": ["Littler Mendelson (labor law firm)", "Jackson Lewis (employment law)", "Bloomberg BNA", "Moody's ESG", "MSCI ESG", "Compliance.ai", "Glassdoor/Indeed", "Paychex/ADP"],
+    "target_researchers": ["Prof. David Weil (Brandeis)", "EPI (Economic Policy Institute)", "NELP (National Employment Law Project)", "Prof. Matthew Johnson (Duke)", "Prof. Anna Stansbury (MIT Sloan)"],
     "record_count": 324667,
     "test_count": 107,
     "problems_resolved": 2,
     "created_at": "2026-03-03T00:00:00Z",
-    "last_updated": "2026-03-03T19:30:00Z",
-    "notes": "BUILDING. 233,011 NLRB cases loaded (2015-present), 91,656 employer profiles built. Avg quality 0.981. Top repeat offenders: USPS (24K), UPS (2.6K), Starbucks (2.2K), AT&T (958), Amazon (395). Exports generated (CSV/JSON/Excel/Markdown). WHD/OSHA data blocked by DOL migration (P1 — needs API key registration). 107 tests. Next: resolve DOL access, add WHD+OSHA data, complete outreach package."
+    "last_updated": "2026-03-04T00:00:00Z",
+    "notes": "CLIENT-READY (Phase 1). 233,011 NLRB cases (2015-present), 91,656 employer profiles. Avg quality 0.981. Top repeat offenders: USPS (24K), UPS (2.6K), Starbucks (2.2K), AT&T (958), Amazon (395). Exports (CSV/JSON/Excel/Markdown), 8-section dashboard, methodology doc, outreach package (20 targets, 3 email templates, pitch materials) all complete. 107 tests. P1 (DOL WHD/OSHA data) OPEN — needs free API key registration at dataportal.dol.gov/registration. Both WHD (10246) and OSHA (10313) confirmed available on v4 API. Phase 2 will add WHD+OSHA cross-linking."
   }
 ]
