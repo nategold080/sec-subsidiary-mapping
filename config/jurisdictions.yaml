@@ -1,0 +1,157 @@
+# Jurisdiction normalization mapping
+# Maps common variations to standardized (code, country, name) tuples
+
+us_states:
+  AL: "Alabama"
+  AK: "Alaska"
+  AZ: "Arizona"
+  AR: "Arkansas"
+  CA: "California"
+  CO: "Colorado"
+  CT: "Connecticut"
+  DE: "Delaware"
+  FL: "Florida"
+  GA: "Georgia"
+  HI: "Hawaii"
+  ID: "Idaho"
+  IL: "Illinois"
+  IN: "Indiana"
+  IA: "Iowa"
+  KS: "Kansas"
+  KY: "Kentucky"
+  LA: "Louisiana"
+  ME: "Maine"
+  MD: "Maryland"
+  MA: "Massachusetts"
+  MI: "Michigan"
+  MN: "Minnesota"
+  MS: "Mississippi"
+  MO: "Missouri"
+  MT: "Montana"
+  NE: "Nebraska"
+  NV: "Nevada"
+  NH: "New Hampshire"
+  NJ: "New Jersey"
+  NM: "New Mexico"
+  NY: "New York"
+  NC: "North Carolina"
+  ND: "North Dakota"
+  OH: "Ohio"
+  OK: "Oklahoma"
+  OR: "Oregon"
+  PA: "Pennsylvania"
+  RI: "Rhode Island"
+  SC: "South Carolina"
+  SD: "South Dakota"
+  TN: "Tennessee"
+  TX: "Texas"
+  UT: "Utah"
+  VT: "Vermont"
+  VA: "Virginia"
+  WA: "Washington"
+  WV: "West Virginia"
+  WI: "Wisconsin"
+  WY: "Wyoming"
+  DC: "District of Columbia"
+  PR: "Puerto Rico"
+  VI: "U.S. Virgin Islands"
+  GU: "Guam"
+
+# Common country name variations -> ISO 3166-1 alpha-2 code
+countries:
+  US: ["United States", "USA", "U.S.", "U.S.A.", "United States of America"]
+  GB: ["United Kingdom", "UK", "U.K.", "England", "Great Britain", "Scotland", "Wales", "Northern Ireland"]
+  CA: ["Canada"]
+  DE: ["Germany", "Federal Republic of Germany"]
+  FR: ["France", "French Republic"]
+  JP: ["Japan"]
+  CN: ["China", "People's Republic of China", "PRC"]
+  HK: ["Hong Kong", "Hong Kong SAR"]
+  SG: ["Singapore", "Republic of Singapore"]
+  AU: ["Australia", "Commonwealth of Australia"]
+  NL: ["Netherlands", "The Netherlands", "Holland"]
+  IE: ["Ireland", "Republic of Ireland", "Eire"]
+  LU: ["Luxembourg", "Grand Duchy of Luxembourg"]
+  CH: ["Switzerland", "Swiss Confederation"]
+  KY: ["Cayman Islands", "Cayman Is.", "Cayman"]
+  BM: ["Bermuda"]
+  VG: ["British Virgin Islands", "BVI", "B.V.I."]
+  JE: ["Jersey"]
+  GG: ["Guernsey"]
+  IM: ["Isle of Man"]
+  MU: ["Mauritius"]
+  PA: ["Panama", "Republic of Panama"]
+  BS: ["Bahamas", "The Bahamas", "Commonwealth of The Bahamas"]
+  BB: ["Barbados"]
+  CW: ["Curacao", "Curaçao"]
+  MX: ["Mexico", "United Mexican States"]
+  BR: ["Brazil", "Federative Republic of Brazil"]
+  IN: ["India", "Republic of India"]
+  KR: ["South Korea", "Republic of Korea", "Korea"]
+  TW: ["Taiwan", "Republic of China"]
+  IL: ["Israel", "State of Israel"]
+  AE: ["United Arab Emirates", "UAE", "U.A.E."]
+  SA: ["Saudi Arabia", "Kingdom of Saudi Arabia"]
+  ZA: ["South Africa"]
+  SE: ["Sweden"]
+  NO: ["Norway"]
+  DK: ["Denmark"]
+  FI: ["Finland"]
+  BE: ["Belgium"]
+  AT: ["Austria"]
+  IT: ["Italy"]
+  ES: ["Spain"]
+  PT: ["Portugal"]
+  PL: ["Poland"]
+  CZ: ["Czech Republic", "Czechia"]
+  HU: ["Hungary"]
+  RO: ["Romania"]
+  GR: ["Greece"]
+  TR: ["Turkey", "Türkiye"]
+  RU: ["Russia", "Russian Federation"]
+  NZ: ["New Zealand"]
+  PH: ["Philippines"]
+  TH: ["Thailand"]
+  MY: ["Malaysia"]
+  ID: ["Indonesia"]
+  VN: ["Vietnam", "Viet Nam"]
+  CL: ["Chile"]
+  CO: ["Colombia"]
+  AR: ["Argentina"]
+  PE: ["Peru"]
+  EC: ["Ecuador"]
+  DO: ["Dominican Republic"]
+  CR: ["Costa Rica"]
+  GT: ["Guatemala"]
+  NG: ["Nigeria"]
+  KE: ["Kenya"]
+  EG: ["Egypt"]
+  MA: ["Morocco"]
+  GH: ["Ghana"]
+
+tax_havens:
+  - KY  # Cayman Islands
+  - VG  # British Virgin Islands
+  - BM  # Bermuda
+  - BS  # Bahamas
+  - JE  # Jersey
+  - GG  # Guernsey
+  - IM  # Isle of Man
+  - PA  # Panama
+  - MU  # Mauritius
+  - LU  # Luxembourg
+  - IE  # Ireland
+  - NL  # Netherlands (sometimes used for holding structures)
+  - CH  # Switzerland
+  - SG  # Singapore
+  - HK  # Hong Kong
+  - CW  # Curacao
+  - BB  # Barbados
+  - LI  # Liechtenstein
+  - MC  # Monaco
+  - GI  # Gibraltar
+  - SC  # Seychelles
+  - BZ  # Belize
+  - VU  # Vanuatu
+  - AI  # Anguilla
+  - TC  # Turks and Caicos

@@ -1,0 +1,44 @@
+# Data sources for SEC Subsidiary Mapping
+
+edgar_efts:
+  name: "SEC EDGAR Full-Text Search"
+  base_url: "https://efts.sec.gov/LATEST/search-index"
+  description: "Full-text search API for finding Exhibit 21 filings in 10-K forms"
+  rate_limit_per_second: 10
+  pagination: "from"
+  max_results_per_page: 100
+  fields:
+    - accessionNo
+    - fileDate
+    - companyName
+    - cik
+    - exhibits
+
+edgar_submissions:
+  name: "SEC EDGAR Submissions"
+  base_url: "https://data.sec.gov/submissions"
+  description: "Per-company filing history and exhibit index"
+  rate_limit_per_second: 10
+  format: "json"
+  cik_padding: 10
+
+edgar_archives:
+  name: "SEC EDGAR Archives"
+  base_url: "https://www.sec.gov/Archives/edgar/data"
+  description: "Raw Exhibit 21 HTML/text files"
+  rate_limit_per_second: 10
+  cache_locally: true
+
+xbrl_company_facts:
+  name: "SEC XBRL Company Facts"
+  base_url: "https://data.sec.gov/api/xbrl/companyfacts"
+  description: "XBRL financial data per CIK"
+  rate_limit_per_second: 10
+  format: "json"
+
+company_tickers:
+  name: "SEC Company Tickers"
+  url: "https://www.sec.gov/files/company_tickers.json"
+  description: "CIK-to-ticker mapping for all SEC filers"
+  format: "json"
+  cache_locally: true
