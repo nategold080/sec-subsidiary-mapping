@@ -1,6 +1,6 @@
 """CLI interface for State PUC Rate Case Tracker.
 
-Commands: scrape, extract, normalize, validate, export, dashboard, stats, pipeline
+Commands: scrape, extract, normalize, validate, export, dashboard, stats, pipeline, seed
 """
 
 import click
@@ -64,9 +64,12 @@ def extract(source):
     """Extract and parse structured rate case records from raw scraped data."""
     from src.extractors.rate_case_parser import extract_all, extract_source
     if source:
-        extract_source(source)
+        records = extract_source(source)
+        console.print(f"[green]Extracted {len(records)} records from {source}[/green]")
     else:
-        extract_all()
+        all_records = extract_all()
+        total = sum(len(r) for r in all_records.values())
+        console.print(f"[green]Extracted {total} records total[/green]")
 
 
 @cli.command()
@@ -110,6 +113,46 @@ def stats():
     """Show database statistics."""
     from src.storage.database import get_stats
     get_stats()
+
+
+@cli.command()
+def seed():
+    """Load seed data into the database.
+
+    Initializes the database and loads realistic sample rate case records
+    from 5 state PUCs (PA, CA, OR, IN, WA). Use this to populate the
+    database without requiring live web scraping.
+    """
+    from src.storage.database import init_db, store_records
+    from scripts.seed_data import get_all_seed_data
+
+    console.print("[bold blue]Loading seed data...[/bold blue]")
+
+    conn = init_db()
+
+    all_data = get_all_seed_data()
+    total_created = 0
+    total_updated = 0
+
+    for source_key, records in all_data.items():
+        created, updated = store_records(source_key, records, conn=conn)
+        total_created += created
+        total_updated += updated
+
+    conn.close()
+
+    console.print(f"\n[bold green]Seed data loaded: {total_created} created, {total_updated} updated[/bold green]")
+
+    # Run normalization and validation
+    console.print("\n[bold]Running normalization...[/bold]")
+    from src.normalization.utilities import normalize_utilities
+    normalize_utilities()
+
+    console.print("\n[bold]Running quality validation...[/bold]")
+    from src.validation.quality import validate_all
+    validate_all()
+
+    console.print("\n[bold green]Database ready![/bold green]")
 
 
 @cli.command()
