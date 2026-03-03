@@ -18,6 +18,9 @@ Cross-linked database of utility rate case filings and decisions across state pu
 | California CPUC | CPUC Docket/Proceedings | Proceeding number, utility, application type, filed/decision dates, revenue impact | apps.cpuc.ca.gov/apex/f?p=401 |
 | Indiana IURC | Online docket search | Cause number, utility name, case type, filing/order dates | iurc.portal.in.gov |
 | Washington UTC | Open docket system | Docket number, company, service type, filing date, order date, status | www.utc.wa.gov/casedocket |
+| Connecticut PURA | Lotus Notes/Domino docket system | Docket number, utility, filing date, utility type, case type | www.dpuc.state.ct.us |
+| Missouri PSC | EFIS case detail system | Case number, utility, filing date, decision date, utility type, status | efis.psc.mo.gov |
+| Georgia PSC | FACTS docket system | Docket ID, utility, filing year, case type, utility type | psc.ga.gov |
 
 ### Source-Specific Details
 

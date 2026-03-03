@@ -1,21 +1,24 @@
 # PUC Rate Case Tracker - Data Summary
 
-*Generated: 2026-03-03 04:02 UTC*
+*Generated: 2026-03-03 09:30 UTC*
 *Built by Nathan Goldberg | nathanmauricegoldberg@gmail.com*
 
 ## Overview
 
-- **Total Rate Cases:** 621
-- **Unique Utilities:** 467
-- **States Covered:** 5
-- **Date Range:** 1990-01-02 to 2024-04-28
+- **Total Rate Cases:** 1334
+- **Unique Utilities:** 568
+- **States Covered:** 8
+- **Date Range:** 1990-01-02 to 2026-06-01
 
 ## Cases by State
 
 | State | Count |
 |-------|-------|
 | CA | 10 |
+| CT | 115 |
+| GA | 8 |
 | IN | 5 |
+| MO | 590 |
 | OR | 582 |
 | PA | 19 |
 | WA | 5 |
@@ -24,7 +27,9 @@
 
 | Case Type | Count |
 |-----------|-------|
-| general_rate_case | 621 |
+| general_rate_case | 1163 |
+| fuel_cost_adjustment | 169 |
+| infrastructure_rider | 2 |
 
 ## Financial Summary
 
@@ -37,10 +42,10 @@
 
 ## Data Quality
 
-- **Average Quality Score:** 0.670
-- **Min Score:** 0.600
+- **Average Quality Score:** 0.677
+- **Min Score:** 0.500
 - **Max Score:** 1.000
-- **Above Threshold (>=0.6):** 621
+- **Above Threshold (>=0.6):** 1333
 
 ## Largest Rate Cases by Revenue Request
 

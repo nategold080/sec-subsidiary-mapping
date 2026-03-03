@@ -24,6 +24,14 @@
 **Problem:** Washington UTC website (utc.wa.gov) returns 403 Forbidden for all HTTP requests.
 **Resolution:** WA UTC may require specific headers, cookies, or has bot protection. Documented as a limitation. Using structured reference data for WA.
 
+## P8: Only 1 state (OR) with real scraped data — DONE
+**Problem:** 582/621 records came from Oregon PUC EDOCKETS. Only 39 records were structured reference data from PA/CA/IN/WA (not live scraped). This makes the tracker essentially a single-state tool.
+**Fix:** Built live scrapers for 3 additional accessible PUC systems:
+- **CT PURA** (Lotus Notes/Domino) — SearchView + OpenView scraping, 115 rate cases
+- **MO PSC** (EFIS) — Case ID enumeration across known ranges (273 ER + 192 GR + 120 WR + 5 known 2024+), 590 rate cases
+- **GA PSC** (FACTS/Drupal) — Major cases listing + docket page scraping, 8 rate cases
+Total: 1,334 records across 8 states (4 with real scraped data: OR, MO, CT, GA). 568 unique utilities. Average quality 0.677. 214 tests passing.
+
 ## P7: Test failure after quality scoring update — DONE
 **Problem:** `test_documents_contribute` test expected documents to increase quality score, but the updated scoring formula replaced the documents component with source_url.
 **Fix:** Updated test to `test_source_url_contributes` and fixed component name references in active case test (`has_decision_data` → `has_decision_date`).

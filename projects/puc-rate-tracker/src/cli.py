@@ -36,6 +36,9 @@ def scrape(source, force, start_year, end_year):
     from src.scrapers.ca_cpuc import scrape_ca_cpuc
     from src.scrapers.in_iurc import scrape_in_iurc
     from src.scrapers.wa_utc import scrape_wa_utc
+    from src.scrapers.ct_pura import scrape_ct_pura
+    from src.scrapers.mo_psc import scrape_mo_psc
+    from src.scrapers.ga_psc import scrape_ga_psc
 
     scrapers = {
         "pennsylvania_puc": scrape_pa_puc,
@@ -43,6 +46,9 @@ def scrape(source, force, start_year, end_year):
         "california_cpuc": scrape_ca_cpuc,
         "indiana_iurc": scrape_in_iurc,
         "washington_utc": scrape_wa_utc,
+        "connecticut_pura": scrape_ct_pura,
+        "missouri_psc": scrape_mo_psc,
+        "georgia_psc": scrape_ga_psc,
     }
 
     if source:
@@ -166,6 +172,9 @@ def pipeline(skip_scrape, start_year):
     from src.scrapers.ca_cpuc import scrape_ca_cpuc
     from src.scrapers.in_iurc import scrape_in_iurc
     from src.scrapers.wa_utc import scrape_wa_utc
+    from src.scrapers.ct_pura import scrape_ct_pura
+    from src.scrapers.mo_psc import scrape_mo_psc
+    from src.scrapers.ga_psc import scrape_ga_psc
     from src.extractors.rate_case_parser import extract_all
     from src.normalization.utilities import normalize_utilities
     from src.validation.quality import validate_all
@@ -183,6 +192,9 @@ def pipeline(skip_scrape, start_year):
             ("California CPUC", scrape_ca_cpuc),
             ("Indiana IURC", scrape_in_iurc),
             ("Washington UTC", scrape_wa_utc),
+            ("Connecticut PURA", scrape_ct_pura),
+            ("Missouri PSC", scrape_mo_psc),
+            ("Georgia PSC", scrape_ga_psc),
         ]:
             console.print(f"  Scraping {name}...")
             scraper_fn(start_year=start_year)

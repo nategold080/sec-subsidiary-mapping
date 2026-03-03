@@ -581,6 +581,9 @@ def extract_source(source_key: str) -> list[dict]:
         "california_cpuc": raw_dir / "ca_cpuc",
         "indiana_iurc": raw_dir / "in_iurc",
         "washington_utc": raw_dir / "wa_utc",
+        "connecticut_pura": raw_dir / "ct_pura",
+        "missouri_psc": raw_dir / "mo_psc",
+        "georgia_psc": raw_dir / "ga_psc",
     }
 
     source_dir = source_dirs.get(source_key)
@@ -624,6 +627,9 @@ def extract_all() -> dict[str, list[dict]]:
         "california_cpuc",
         "indiana_iurc",
         "washington_utc",
+        "connecticut_pura",
+        "missouri_psc",
+        "georgia_psc",
     ]
 
     all_records = {}

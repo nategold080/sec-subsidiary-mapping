@@ -196,6 +196,123 @@ sources:
       filings include initial filing, staff response, settlement agreements,
       and final orders. Revenue data is in testimony and order documents.
 
+  connecticut_pura:
+    name: "Connecticut Public Utilities Regulatory Authority"
+    abbreviation: "CT PURA"
+    state: "CT"
+    base_url: "https://www.dpuc.state.ct.us"
+    search_url: "https://www.dpuc.state.ct.us/dockcurr.nsf"
+    docket_url_template: "https://www.dpuc.state.ct.us/dockcurr.nsf/8e6fc37a54110e3e852576190052b64d?SearchView&Query=%5B{docket_number}%5D"
+    description: "Connecticut PURA Lotus Notes/Domino docket system covering electric, gas, water, and telecom utilities"
+    docket_format:
+      pattern: "\\d{2}-\\d{2}-\\d{2}"
+      prefix: null
+      example: "24-10-04"
+      description: "YY-MM-NN format where YY=year, MM=month, NN=sequence within month"
+    utility_types:
+      - electric
+      - gas
+      - water
+      - wastewater
+      - telecommunications
+    rate_case_search_params:
+      search_queries:
+        - "rate+case"
+        - "general+rate+case"
+        - "revenue+requirement"
+        - "rate+increase"
+    key_fields:
+      - docket_number
+      - utility_name
+      - filing_date
+      - case_type
+      - status
+      - utility_type
+    historical_coverage: "2000-present"
+    scrape_strategy: "lotus_notes_search"
+    notes: >
+      CT PURA uses a Lotus Notes/Domino system with SearchView and OpenView APIs.
+      Docket numbers are in bracket format [YY-MM-NN] in search results. Rate cases
+      are identified by keyword search for rate-related terms, validated against
+      known CT utility names.
+
+  georgia_psc:
+    name: "Georgia Public Service Commission"
+    abbreviation: "GA PSC"
+    state: "GA"
+    base_url: "https://psc.ga.gov"
+    search_url: "https://psc.ga.gov/major-cases-heard-by-the-commission/"
+    docket_url_template: "https://psc.ga.gov/search/facts-docket/?docketId={docket_id}"
+    description: "Georgia PSC docket system covering electric, gas, and water utilities"
+    docket_format:
+      pattern: "\\d{5}"
+      prefix: null
+      example: "44280"
+      description: "Five-digit numeric docket IDs"
+    utility_types:
+      - electric
+      - gas
+      - water
+    rate_case_search_params:
+      source: "major_cases_page"
+    key_fields:
+      - docket_number
+      - utility_name
+      - filing_date
+      - case_type
+      - utility_type
+    historical_coverage: "2004-present"
+    scrape_strategy: "drupal_page_parse"
+    notes: >
+      Georgia PSC uses Drupal with a FACTS docket system. Document filing
+      tables load via JavaScript AJAX, but docket titles and IDs are
+      server-rendered. Rate case dockets discovered via the major cases
+      listing page and nearby ID scanning.
+
+  missouri_psc:
+    name: "Missouri Public Service Commission"
+    abbreviation: "MO PSC"
+    state: "MO"
+    base_url: "https://efis.psc.mo.gov"
+    search_url: "https://efis.psc.mo.gov/Case/Display/{case_id}"
+    docket_url_template: "https://efis.psc.mo.gov/Case/Display/{case_id}"
+    description: "Missouri PSC EFIS system covering electric, gas, water, and sewer utilities"
+    docket_format:
+      pattern: "[A-Z]{2}-\\d{4}-\\d{3,5}"
+      prefixes:
+        electric: "ER"
+        gas: "GR"
+        water: "WR"
+        sewer: "SR"
+      example: "ER-2024-0319"
+      description: "Prefix indicates utility type: ER=electric rate, GR=gas rate, WR=water rate, SR=sewer rate"
+    utility_types:
+      - electric
+      - gas
+      - water
+      - wastewater
+    rate_case_search_params:
+      case_prefixes:
+        - "ER-"
+        - "GR-"
+        - "WR-"
+        - "SR-"
+    key_fields:
+      - docket_number
+      - utility_name
+      - filing_date
+      - case_type
+      - utility_type
+      - status
+      - decision_date
+    historical_coverage: "2000-present"
+    scrape_strategy: "efis_id_enumeration"
+    notes: >
+      MO PSC EFIS uses numeric case IDs. Rate cases are discovered by scanning
+      known ID ranges (11100-11450 for ER, 12200-12420 for GR, 17100-17320 for WR)
+      and specific known 2024+ IDs. Case detail pages provide status, utility type,
+      company names, and filing dates.
+
 # Scraping configuration
 scraping:
   user_agent: "DataFactory/1.0 (PUC-Rate-Tracker; research; contact: nathanmauricegoldberg@gmail.com)"
