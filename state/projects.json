@@ -2,18 +2,18 @@
   {
     "id": "nursing-home-tracker",
     "name": "Nursing Home Inspection & Deficiency Tracker",
-    "status": "research",
+    "status": "building",
     "score": 26,
     "description": "Cross-linked database of nursing home deficiencies, penalties, ownership (incl PE/REIT), staffing, and quality measures from CMS data",
     "data_sources": ["data.cms.gov/health-deficiencies", "data.cms.gov/penalties", "data.cms.gov/ownership", "data.cms.gov/provider-info", "data.cms.gov/survey-summary", "cms-cost-reports"],
     "target_buyers": ["PE firms in senior care", "Senior care REITs (Sabra, CareTrust, Omega)", "Elder law attorneys", "LTCCC/National Consumer Voice", "KFF Health News/ProPublica", "Wharton/NYU researchers"],
     "target_researchers": ["Atul Gupta at Wharton", "Sabrina Howell at NYU", "NBER healthcare team"],
     "record_count": 0,
-    "test_count": 0,
+    "test_count": 106,
     "problems_resolved": 0,
     "created_at": "2026-03-02T00:00:00Z",
     "last_updated": "2026-03-02T00:00:00Z",
-    "notes": "Highest-scored idea (26/30). Starting scaffold. CMS data is all downloadable CSV. PE ownership disclosure rule (Nov 2023) creates timely hook."
+    "notes": "Core modules complete: schemas, extractors, normalization, validation, storage, exports, dashboard, CLI. 106 tests passing. Ready to run pipeline against CMS data."
   },
   {
     "id": "puc-rate-tracker",
