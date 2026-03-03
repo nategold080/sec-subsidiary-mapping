@@ -126,5 +126,21 @@
     "created_at": "2026-03-03T00:00:00Z",
     "last_updated": "2026-03-04T01:00:00Z",
     "notes": "CLIENT-READY. 54,102 LIHTC projects, 33,772 REAC inspections, 36,274 multifamily properties. 51,427 cross-links via 5-stage engine (property ID, address exact, fuzzy, contract, owner aggregation). 4,556 management company profiles with portfolio-level REAC scores. 956 failing properties (<60 score). 3.7M+ total LIHTC units across 56 states/territories. 106 tests passing. 2 problems resolved. Exports (CSV/JSON/Excel/Markdown), 8-section dashboard, methodology doc, outreach package (20 targets, 3 email templates, pitch materials) all complete."
+  },
+  {
+    "id": "h1b-employer-compliance",
+    "name": "H-1B Employer Compliance Tracker",
+    "status": "client-ready",
+    "score": 23,
+    "description": "Cross-linked database of H-1B employer data from DOL LCA filings, USCIS petition outcomes, and enforcement actions with composite compliance scoring",
+    "data_sources": ["dol.gov/agencies/eta/foreign-labor (LCA)", "uscis.gov/h1b-employer-data-hub (USCIS)", "dol.gov/agencies/whd (debarments/willful violators)"],
+    "target_buyers": ["Envoy Global", "Fragomen", "Bloomberg Law", "Berry Appleman & Leiden", "Quorum Analytics"],
+    "target_researchers": ["Ron Hira (Howard University)", "Hal Salzman (Rutgers)", "Daniel Costa (EPI)", "Giovanni Peri (UC Davis)"],
+    "record_count": 690000,
+    "test_count": 89,
+    "problems_resolved": 3,
+    "created_at": "2026-03-04T00:00:00Z",
+    "last_updated": "2026-03-04T02:00:00Z",
+    "notes": "CLIENT-READY. 480,593 LCA applications + 209,348 USCIS employer records + 11 debarments/willful violators. 54,858 employer profiles with composite compliance scores. 131,541 cross-links. Cognizant: 17,365 LCAs, 78.7% USCIS approval; Google: 5,209 LCAs, 98.8% approval, $250K avg wage. 5 debarred employers found with active LCA filings. 89 tests passing. 3 problems resolved (P1 suffix stripping, P2 cross-linker performance, P5 HTML parser). P3/P4/P6/P7 OPEN (non-critical). Exports (CSV/JSON/Excel/Markdown), 8-section dashboard, methodology doc, outreach package (20 targets, 3 email templates, pitch materials) all complete."
   }
 ]

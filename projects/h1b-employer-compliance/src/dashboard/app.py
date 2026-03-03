@@ -1,0 +1,500 @@
+"""Streamlit dashboard for H-1B Employer Compliance Tracker."""
+
+import json
+import sqlite3
+from pathlib import Path
+
+import pandas as pd
+import plotly.express as px
+import streamlit as st
+
+DB_PATH = Path(__file__).parent.parent.parent / "data" / "h1b_compliance.db"
+
+
+@st.cache_resource
+def get_db():
+    conn = sqlite3.connect(str(DB_PATH), check_same_thread=False)
+    conn.row_factory = sqlite3.Row
+    return conn
+
+
+@st.cache_data(ttl=3600)
+def query(sql, params=None):
+    conn = get_db()
+    if params:
+        rows = conn.execute(sql, params).fetchall()
+    else:
+        rows = conn.execute(sql).fetchall()
+    if rows:
+        cols = rows[0].keys()
+        return pd.DataFrame([dict(r) for r in rows], columns=cols)
+    return pd.DataFrame()
+
+
+def main():
+    st.set_page_config(
+        page_title="H-1B Employer Compliance Tracker",
+        page_icon="📊",
+        layout="wide",
+    )
+
+    st.title("📊 H-1B Employer Compliance Tracker")
+    st.caption("Cross-linked DOL LCA, USCIS petition, and enforcement data")
+
+    tabs = st.tabs([
+        "Overview", "Employer Search", "Top Employers",
+        "Compliance Analysis", "Geographic", "USCIS Petitions",
+        "Debarments", "Data Explorer",
+    ])
+
+    with tabs[0]:
+        _overview_tab()
+    with tabs[1]:
+        _search_tab()
+    with tabs[2]:
+        _top_employers_tab()
+    with tabs[3]:
+        _compliance_tab()
+    with tabs[4]:
+        _geographic_tab()
+    with tabs[5]:
+        _uscis_tab()
+    with tabs[6]:
+        _debarments_tab()
+    with tabs[7]:
+        _explorer_tab()
+
+    st.markdown("---")
+    st.markdown(
+        "Built by **Nathan Goldberg** · "
+        "[Email](mailto:nathanmauricegoldberg@gmail.com) · "
+        "[LinkedIn](https://linkedin.com/in/nathanmauricegoldberg)"
+    )
+
+
+def _overview_tab():
+    conn = get_db()
+
+    # KPIs
+    stats = {}
+    for table in ["lca_applications", "uscis_employers", "whd_violations",
+                   "debarments", "employer_profiles", "cross_links"]:
+        row = conn.execute(f"SELECT COUNT(*) as n FROM {table}").fetchone()
+        stats[table] = row["n"]
+
+    row = conn.execute("SELECT COUNT(DISTINCT employer_name) as n FROM lca_applications").fetchone()
+    stats["unique_employers"] = row["n"]
+    row = conn.execute("SELECT COUNT(DISTINCT fiscal_year) as n FROM lca_applications WHERE fiscal_year IS NOT NULL").fetchone()
+    stats["fiscal_years"] = row["n"]
+    row = conn.execute("SELECT AVG(annualized_wage) as v FROM lca_applications WHERE annualized_wage > 0").fetchone()
+    stats["avg_wage"] = row["v"] or 0
+    row = conn.execute("SELECT SUM(total_workers) as v FROM lca_applications").fetchone()
+    stats["total_workers"] = row["v"] or 0
+
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("LCA Applications", f"{stats['lca_applications']:,}")
+    c2.metric("Unique Employers", f"{stats['unique_employers']:,}")
+    c3.metric("USCIS Employer Records", f"{stats['uscis_employers']:,}")
+    c4.metric("Cross-Links", f"{stats['cross_links']:,}")
+
+    c5, c6, c7, c8 = st.columns(4)
+    c5.metric("Employer Profiles", f"{stats['employer_profiles']:,}")
+    c6.metric("Average Wage", f"${stats['avg_wage']:,.0f}")
+    c7.metric("Total Workers", f"{stats['total_workers']:,}")
+    c8.metric("Debarments", f"{stats['debarments']:,}")
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        # Top 10 by LCA volume
+        df = query("""
+            SELECT employer_name, total_lcas
+            FROM employer_profiles ORDER BY total_lcas DESC LIMIT 10
+        """)
+        if not df.empty:
+            fig = px.bar(df, x="total_lcas", y="employer_name", orientation="h",
+                         title="Top 10 H-1B Employers by LCA Volume",
+                         labels={"total_lcas": "LCA Applications", "employer_name": ""})
+            fig.update_layout(yaxis=dict(autorange="reversed"), height=400)
+            st.plotly_chart(fig, use_container_width=True)
+
+    with col2:
+        # LCA by fiscal year
+        df = query("""
+            SELECT fiscal_year, COUNT(*) as count
+            FROM lca_applications
+            WHERE fiscal_year IS NOT NULL
+            GROUP BY fiscal_year ORDER BY fiscal_year
+        """)
+        if not df.empty:
+            fig = px.bar(df, x="fiscal_year", y="count",
+                         title="LCA Applications by Fiscal Year",
+                         labels={"count": "Applications", "fiscal_year": "Fiscal Year"})
+            st.plotly_chart(fig, use_container_width=True)
+
+    col3, col4 = st.columns(2)
+    with col3:
+        # Wage distribution
+        df = query("""
+            SELECT CASE
+                WHEN annualized_wage < 60000 THEN '<$60K'
+                WHEN annualized_wage < 80000 THEN '$60-80K'
+                WHEN annualized_wage < 100000 THEN '$80-100K'
+                WHEN annualized_wage < 120000 THEN '$100-120K'
+                WHEN annualized_wage < 150000 THEN '$120-150K'
+                WHEN annualized_wage < 200000 THEN '$150-200K'
+                WHEN annualized_wage < 300000 THEN '$200-300K'
+                ELSE '$300K+'
+            END as wage_band,
+            COUNT(*) as count
+            FROM lca_applications
+            WHERE annualized_wage > 0
+            GROUP BY wage_band
+        """)
+        if not df.empty:
+            order = ["<$60K", "$60-80K", "$80-100K", "$100-120K",
+                     "$120-150K", "$150-200K", "$200-300K", "$300K+"]
+            df["wage_band"] = pd.Categorical(df["wage_band"], categories=order, ordered=True)
+            df = df.sort_values("wage_band")
+            fig = px.bar(df, x="wage_band", y="count",
+                         title="H-1B Wage Distribution",
+                         labels={"count": "Applications", "wage_band": "Wage Band"})
+            st.plotly_chart(fig, use_container_width=True)
+
+    with col4:
+        # Top SOC codes
+        df = query("""
+            SELECT soc_code, soc_title, COUNT(*) as count
+            FROM lca_applications
+            WHERE soc_code IS NOT NULL AND soc_code != ''
+            GROUP BY soc_code, soc_title
+            ORDER BY count DESC LIMIT 10
+        """)
+        if not df.empty:
+            df["label"] = df["soc_code"] + " " + df["soc_title"].str[:30]
+            fig = px.bar(df, x="count", y="label", orientation="h",
+                         title="Top 10 Occupations (SOC Code)",
+                         labels={"count": "Applications", "label": ""})
+            fig.update_layout(yaxis=dict(autorange="reversed"), height=400)
+            st.plotly_chart(fig, use_container_width=True)
+
+
+def _search_tab():
+    st.subheader("Employer Search")
+    search = st.text_input("Search employer name:", placeholder="e.g. Google, Microsoft, Infosys")
+
+    if search and len(search) >= 2:
+        df = query("""
+            SELECT employer_name, total_lcas, total_workers,
+                   ROUND(avg_wage, 0) as avg_wage,
+                   ROUND(avg_wage_ratio, 3) as wage_ratio,
+                   approval_rate, whd_violations, is_debarred,
+                   ROUND(compliance_score, 3) as compliance_score,
+                   states_active, fiscal_years, source_types
+            FROM employer_profiles
+            WHERE employer_name LIKE ? OR normalized_name LIKE ?
+            ORDER BY total_lcas DESC
+            LIMIT 50
+        """, (f"%{search}%", f"%{search.upper()}%"))
+
+        if df.empty:
+            st.warning("No employers found.")
+        else:
+            st.success(f"Found {len(df)} employer(s)")
+
+            for _, row in df.iterrows():
+                with st.expander(f"**{row['employer_name']}** — {row['total_lcas']:,} LCAs"):
+                    c1, c2, c3, c4 = st.columns(4)
+                    c1.metric("LCA Applications", f"{row['total_lcas']:,}")
+                    c2.metric("Total Workers", f"{row['total_workers']:,}")
+                    c3.metric("Avg Wage", f"${row['avg_wage']:,.0f}" if row['avg_wage'] else "N/A")
+                    c4.metric("Compliance Score", f"{row['compliance_score']:.3f}" if row['compliance_score'] else "N/A")
+
+                    c5, c6, c7, c8 = st.columns(4)
+                    c5.metric("Wage Ratio", f"{row['wage_ratio']}" if row['wage_ratio'] else "N/A")
+                    c6.metric("USCIS Approval Rate", f"{row['approval_rate']:.1f}%" if row['approval_rate'] else "N/A")
+                    c7.metric("WHD Violations", str(row['whd_violations']))
+                    c8.metric("Debarred", "⚠️ YES" if row['is_debarred'] else "No")
+
+                    st.write(f"**States:** {row['states_active']}")
+                    st.write(f"**Fiscal Years:** {row['fiscal_years']}")
+                    st.write(f"**Data Sources:** {row['source_types']}")
+
+
+def _top_employers_tab():
+    st.subheader("Top H-1B Employers")
+
+    col1, col2 = st.columns(2)
+    with col1:
+        min_lcas = st.number_input("Minimum LCAs", value=10, min_value=1)
+    with col2:
+        sort_by = st.selectbox("Sort by", [
+            "total_lcas", "total_workers", "avg_wage",
+            "compliance_score", "approval_rate", "avg_wage_ratio",
+        ])
+
+    df = query(f"""
+        SELECT employer_name, total_lcas, total_workers,
+               ROUND(avg_wage, 0) as avg_wage,
+               ROUND(avg_wage_ratio, 3) as wage_ratio,
+               approval_rate, whd_violations, is_debarred,
+               ROUND(compliance_score, 3) as compliance_score,
+               source_types
+        FROM employer_profiles
+        WHERE total_lcas >= ?
+        ORDER BY {sort_by} DESC
+        LIMIT 100
+    """, (min_lcas,))
+
+    if not df.empty:
+        st.dataframe(df, use_container_width=True, height=500)
+
+        # Download button
+        csv = df.to_csv(index=False)
+        st.download_button("Download CSV", csv, "top_employers.csv", "text/csv")
+
+
+def _compliance_tab():
+    st.subheader("Compliance Analysis")
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        # Compliance score distribution
+        df = query("""
+            SELECT CASE
+                WHEN compliance_score >= 0.9 THEN 'Excellent (0.9+)'
+                WHEN compliance_score >= 0.7 THEN 'Good (0.7-0.9)'
+                WHEN compliance_score >= 0.5 THEN 'Fair (0.5-0.7)'
+                ELSE 'Poor (<0.5)'
+            END as rating, COUNT(*) as count
+            FROM employer_profiles
+            WHERE compliance_score IS NOT NULL
+            GROUP BY rating
+        """)
+        if not df.empty:
+            fig = px.pie(df, names="rating", values="count",
+                         title="Compliance Score Distribution")
+            st.plotly_chart(fig, use_container_width=True)
+
+    with col2:
+        # Wage ratio vs compliance
+        df = query("""
+            SELECT ROUND(avg_wage_ratio, 1) as wage_ratio_band,
+                   AVG(compliance_score) as avg_compliance,
+                   COUNT(*) as count
+            FROM employer_profiles
+            WHERE avg_wage_ratio IS NOT NULL AND avg_wage_ratio BETWEEN 0.5 AND 3.0
+                  AND compliance_score IS NOT NULL
+            GROUP BY wage_ratio_band
+            HAVING count >= 5
+            ORDER BY wage_ratio_band
+        """)
+        if not df.empty:
+            fig = px.scatter(df, x="wage_ratio_band", y="avg_compliance",
+                             size="count", title="Wage Ratio vs Compliance Score",
+                             labels={"wage_ratio_band": "Avg Wage / Prevailing Wage",
+                                     "avg_compliance": "Avg Compliance Score"})
+            st.plotly_chart(fig, use_container_width=True)
+
+    # Lowest compliance employers with significant filings
+    st.subheader("Lowest Compliance Employers (50+ LCAs)")
+    df = query("""
+        SELECT employer_name, total_lcas, total_workers,
+               ROUND(avg_wage, 0) as avg_wage,
+               ROUND(avg_wage_ratio, 3) as wage_ratio,
+               approval_rate, whd_violations, is_debarred,
+               ROUND(compliance_score, 3) as compliance_score
+        FROM employer_profiles
+        WHERE compliance_score IS NOT NULL AND total_lcas >= 50
+        ORDER BY compliance_score ASC
+        LIMIT 25
+    """)
+    if not df.empty:
+        st.dataframe(df, use_container_width=True)
+
+
+def _geographic_tab():
+    st.subheader("Geographic Analysis")
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        # LCAs by state
+        df = query("""
+            SELECT employer_state as state, COUNT(*) as count
+            FROM lca_applications
+            WHERE employer_state IS NOT NULL AND LENGTH(employer_state) = 2
+            GROUP BY employer_state ORDER BY count DESC
+        """)
+        if not df.empty:
+            fig = px.choropleth(df, locations="state", locationmode="USA-states",
+                                color="count", scope="usa",
+                                title="H-1B LCA Applications by Employer State",
+                                color_continuous_scale="Blues",
+                                labels={"count": "Applications"})
+            st.plotly_chart(fig, use_container_width=True)
+
+    with col2:
+        # Average wage by state
+        df = query("""
+            SELECT employer_state as state,
+                   ROUND(AVG(annualized_wage), 0) as avg_wage,
+                   COUNT(*) as count
+            FROM lca_applications
+            WHERE employer_state IS NOT NULL AND LENGTH(employer_state) = 2
+                  AND annualized_wage > 0
+            GROUP BY employer_state
+            HAVING count >= 10
+            ORDER BY avg_wage DESC
+        """)
+        if not df.empty:
+            fig = px.choropleth(df, locations="state", locationmode="USA-states",
+                                color="avg_wage", scope="usa",
+                                title="Average H-1B Wage by State",
+                                color_continuous_scale="Greens",
+                                labels={"avg_wage": "Avg Wage ($)"})
+            st.plotly_chart(fig, use_container_width=True)
+
+    # Top states table
+    df = query("""
+        SELECT employer_state as state, COUNT(*) as lcas,
+               COUNT(DISTINCT employer_name) as employers,
+               ROUND(AVG(annualized_wage), 0) as avg_wage,
+               ROUND(AVG(wage_ratio), 3) as avg_wage_ratio
+        FROM lca_applications
+        WHERE employer_state IS NOT NULL AND LENGTH(employer_state) = 2
+              AND annualized_wage > 0
+        GROUP BY employer_state
+        ORDER BY lcas DESC LIMIT 20
+    """)
+    if not df.empty:
+        st.subheader("Top 20 States by LCA Volume")
+        st.dataframe(df, use_container_width=True)
+
+
+def _uscis_tab():
+    st.subheader("USCIS Petition Outcomes")
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        # Approval rate distribution
+        df = query("""
+            SELECT CASE
+                WHEN approval_rate >= 95 THEN '95-100%'
+                WHEN approval_rate >= 90 THEN '90-95%'
+                WHEN approval_rate >= 80 THEN '80-90%'
+                WHEN approval_rate >= 70 THEN '70-80%'
+                WHEN approval_rate >= 50 THEN '50-70%'
+                ELSE '<50%'
+            END as rate_band, COUNT(*) as count
+            FROM employer_profiles
+            WHERE approval_rate IS NOT NULL
+            GROUP BY rate_band
+        """)
+        if not df.empty:
+            order = ["<50%", "50-70%", "70-80%", "80-90%", "90-95%", "95-100%"]
+            df["rate_band"] = pd.Categorical(df["rate_band"], categories=order, ordered=True)
+            df = df.sort_values("rate_band")
+            fig = px.bar(df, x="rate_band", y="count",
+                         title="USCIS Approval Rate Distribution",
+                         labels={"count": "Employers", "rate_band": "Approval Rate"})
+            st.plotly_chart(fig, use_container_width=True)
+
+    with col2:
+        # Approval vs denial totals by year
+        df = query("""
+            SELECT fiscal_year,
+                   SUM(total_approvals) as approvals,
+                   SUM(total_denials) as denials
+            FROM uscis_employers
+            WHERE fiscal_year IS NOT NULL
+            GROUP BY fiscal_year ORDER BY fiscal_year
+        """)
+        if not df.empty:
+            fig = px.bar(df, x="fiscal_year", y=["approvals", "denials"],
+                         title="USCIS Approvals vs Denials by Year",
+                         barmode="group",
+                         labels={"fiscal_year": "Fiscal Year", "value": "Count"})
+            st.plotly_chart(fig, use_container_width=True)
+
+    # Lowest approval rate employers
+    st.subheader("Lowest Approval Rate Employers (100+ LCAs)")
+    df = query("""
+        SELECT employer_name, total_lcas, uscis_approvals, uscis_denials,
+               approval_rate, ROUND(compliance_score, 3) as compliance_score
+        FROM employer_profiles
+        WHERE approval_rate IS NOT NULL AND total_lcas >= 100
+        ORDER BY approval_rate ASC
+        LIMIT 25
+    """)
+    if not df.empty:
+        st.dataframe(df, use_container_width=True)
+
+
+def _debarments_tab():
+    st.subheader("Debarred & Willful Violator Employers")
+
+    df = query("""
+        SELECT employer_name, employer_city, employer_state, program,
+               debar_start_date, debar_end_date, violation_type, source
+        FROM debarments ORDER BY debar_start_date DESC
+    """)
+    if not df.empty:
+        st.dataframe(df, use_container_width=True)
+
+    # Show debarred employers that had LCA activity
+    st.subheader("Debarred Employers with H-1B Filing Activity")
+    df = query("""
+        SELECT ep.employer_name, ep.total_lcas, ep.total_workers,
+               ROUND(ep.avg_wage, 0) as avg_wage,
+               ROUND(ep.compliance_score, 3) as compliance_score,
+               ep.fiscal_years, ep.states_active
+        FROM employer_profiles ep
+        WHERE ep.is_debarred = 1
+        ORDER BY ep.total_lcas DESC
+    """)
+    if not df.empty:
+        st.warning(f"Found {len(df)} debarred employers with LCA activity")
+        st.dataframe(df, use_container_width=True)
+    else:
+        st.info("No debarred employers found with matching LCA filings.")
+
+
+def _explorer_tab():
+    st.subheader("Data Explorer")
+
+    table = st.selectbox("Table", [
+        "employer_profiles", "lca_applications", "uscis_employers",
+        "debarments", "cross_links",
+    ])
+
+    conn = get_db()
+    count = conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
+    st.write(f"**{count:,}** total records")
+
+    search = st.text_input("Filter (employer name contains):", key="explorer_search")
+
+    limit = st.slider("Rows to display", 10, 500, 100)
+
+    if search:
+        if table == "employer_profiles":
+            df = query(f"SELECT * FROM {table} WHERE employer_name LIKE ? LIMIT ?",
+                       (f"%{search}%", limit))
+        elif table in ("lca_applications", "uscis_employers"):
+            df = query(f"SELECT * FROM {table} WHERE employer_name LIKE ? LIMIT ?",
+                       (f"%{search}%", limit))
+        else:
+            df = query(f"SELECT * FROM {table} LIMIT ?", (limit,))
+    else:
+        df = query(f"SELECT * FROM {table} LIMIT ?", (limit,))
+
+    if not df.empty:
+        st.dataframe(df, use_container_width=True, height=500)
+        csv = df.to_csv(index=False)
+        st.download_button(f"Download {table}.csv", csv, f"{table}.csv", "text/csv")
+
+
+if __name__ == "__main__":
+    main()
