@@ -75,5 +75,12 @@
     "message": "H-1B Employer Compliance Tracker is complete and ready for review. 480,593 DOL LCA applications cross-linked with 209,348 USCIS employer records and 11 debarment/willful violator entries. 54,858 employer compliance profiles with composite scores (wage fairness 40%, USCIS approval rate 25%, enforcement history 25%, debarment status 10%). 131,541 cross-links. Key findings: Cognizant has lowest compliance (0.818) among top 15 employers; Google highest at 0.997; 5 debarred companies found with active LCA filings; IT outsourcing sector shows systematically lower wage ratios. 89 tests passing, 3 problems resolved. 8-section Streamlit dashboard, exports (CSV/JSON/Excel/Markdown), methodology doc, outreach package (20 targets across immigration law/research/media/policy, 3 email templates, pitch materials) all complete. See projects/h1b-employer-compliance/ for full deliverables.",
     "timestamp": "2026-03-04T02:00:00Z",
     "acknowledged": false
+  },
+  {
+    "project_id": "cpsc-product-safety",
+    "type": "client-ready",
+    "message": "CPSC Product Safety Tracker is complete and ready for review. 9,683 recalls + 65,776 consumer incidents + 2,041,090 NEISS ER injuries (76.2M national estimate) + 395 penalties ($363M fines) + 13,902 import violations. 45,563 cross-links across 4 linking functions. 24,715 manufacturer compliance profiles — 14 flagged high/critical risk (Target 0.22, Black & Decker 0.25, Whirlpool 3,578 incidents). Polaris leads with 55 recalls and $27.3M fines. China accounts for 52% of import violations. 116 tests passing. 3 problems resolved. 8-section Streamlit dashboard, exports (CSV/JSON/Excel/Markdown), methodology doc, outreach package (20 targets, 3 email templates, pitch one-pager) all complete. See projects/cpsc-product-safety/ for full deliverables.",
+    "timestamp": "2026-03-04T03:00:00Z",
+    "acknowledged": false
   }
 ]
