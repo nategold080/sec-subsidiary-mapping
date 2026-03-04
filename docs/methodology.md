@@ -112,7 +112,7 @@ Note: Ireland and Netherlands are included as they are commonly used for holding
 ## Quality Assurance
 
 - All extraction is rule-based (zero LLM dependency)
-- Automated test suite with 90 tests covering parser, normalizer, quality scoring, and database operations
+- Automated test suite with 70+ tests covering parser, normalizer, quality scoring, and database operations
 - Parse success rate tracked per filing
 - Jurisdiction normalization rate tracked
 - Quality scoring with component-level breakdown

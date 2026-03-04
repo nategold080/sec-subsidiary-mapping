@@ -4,7 +4,6 @@ rich>=13.0
 beautifulsoup4>=4.12
 lxml>=5.0
 pydantic>=2.0
-PyYAML>=6.0
 thefuzz[speedup]>=0.22
 openpyxl>=3.1
 streamlit>=1.30
