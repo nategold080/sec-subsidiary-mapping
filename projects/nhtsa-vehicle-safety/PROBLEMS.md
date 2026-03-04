@@ -20,3 +20,14 @@ the vehicles table preserves the make/model associations. Accepted as design dec
 
 ## P6: FCA US LLC normalization — DONE
 After regex strips "LLC" suffix, "FCA US" didn't match alias map entry "FCA US LLC" → "CHRYSLER". Added "FCA US" as explicit alias.
+
+## P7: Regulations.gov API key needed for investigation dockets — OPEN
+Enrichment 3 (investigation docket narratives) requires a free API key from Regulations.gov.
+Register at: https://open.gsa.gov/api/regulationsgov/
+Then set REGULATIONS_GOV_API_KEY environment variable or add to config/api_keys.yaml.
+Scraper, schema, dashboard tab, and tests are all built — just needs the key to run.
+
+## P8: Vehicle attribute body classification defaults to Sedan/Car — DONE
+Rule-based classification with hardcoded model name sets covers ~95% of popular models.
+For uncommon models, body classification defaults to "Sedan/Car". VPIC API fetch provides
+better classification for API-enriched vehicles. 11,088 vehicles enriched with attributes.
