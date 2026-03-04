@@ -43,8 +43,8 @@ def main():
 
     tabs = st.tabs([
         "Overview", "Employer Search", "Top Employers",
-        "Compliance Analysis", "Geographic", "USCIS Petitions",
-        "Debarments", "Data Explorer",
+        "Compliance Analysis", "Industry Analysis", "Geographic",
+        "USCIS Petitions", "Debarments", "Data Explorer",
     ])
 
     with tabs[0]:
@@ -56,12 +56,14 @@ def main():
     with tabs[3]:
         _compliance_tab()
     with tabs[4]:
-        _geographic_tab()
+        _industry_tab()
     with tabs[5]:
-        _uscis_tab()
+        _geographic_tab()
     with tabs[6]:
-        _debarments_tab()
+        _uscis_tab()
     with tabs[7]:
+        _debarments_tab()
+    with tabs[8]:
         _explorer_tab()
 
     st.markdown("---")
@@ -190,7 +192,7 @@ def _search_tab():
                    ROUND(avg_wage_ratio, 3) as wage_ratio,
                    approval_rate, whd_violations, is_debarred,
                    ROUND(compliance_score, 3) as compliance_score,
-                   states_active, fiscal_years, source_types
+                   industry_sector, states_active, fiscal_years, source_types
             FROM employer_profiles
             WHERE employer_name LIKE ? OR normalized_name LIKE ?
             ORDER BY total_lcas DESC
@@ -207,15 +209,16 @@ def _search_tab():
                     c1, c2, c3, c4 = st.columns(4)
                     c1.metric("LCA Applications", f"{row['total_lcas']:,}")
                     c2.metric("Total Workers", f"{row['total_workers']:,}")
-                    c3.metric("Avg Wage", f"${row['avg_wage']:,.0f}" if row['avg_wage'] else "N/A")
-                    c4.metric("Compliance Score", f"{row['compliance_score']:.3f}" if row['compliance_score'] else "N/A")
+                    c3.metric("Avg Wage", "N/A" if row['avg_wage'] is None else f"${row['avg_wage']:,.0f}")
+                    c4.metric("Compliance Score", "N/A" if row['compliance_score'] is None else f"{row['compliance_score']:.3f}")
 
                     c5, c6, c7, c8 = st.columns(4)
-                    c5.metric("Wage Ratio", f"{row['wage_ratio']}" if row['wage_ratio'] else "N/A")
-                    c6.metric("USCIS Approval Rate", f"{row['approval_rate']:.1f}%" if row['approval_rate'] else "N/A")
+                    c5.metric("Wage Ratio", "N/A" if row['wage_ratio'] is None else f"{row['wage_ratio']}")
+                    c6.metric("USCIS Approval Rate", "N/A" if row['approval_rate'] is None else f"{row['approval_rate']:.1f}%")
                     c7.metric("WHD Violations", str(row['whd_violations']))
                     c8.metric("Debarred", "⚠️ YES" if row['is_debarred'] else "No")
 
+                    st.write(f"**Industry:** {row.get('industry_sector', 'N/A')}")
                     st.write(f"**States:** {row['states_active']}")
                     st.write(f"**Fiscal Years:** {row['fiscal_years']}")
                     st.write(f"**Data Sources:** {row['source_types']}")
@@ -224,14 +227,30 @@ def _search_tab():
 def _top_employers_tab():
     st.subheader("Top H-1B Employers")
 
-    col1, col2 = st.columns(2)
+    col1, col2, col3 = st.columns(3)
     with col1:
         min_lcas = st.number_input("Minimum LCAs", value=10, min_value=1)
     with col2:
-        sort_by = st.selectbox("Sort by", [
-            "total_lcas", "total_workers", "avg_wage",
-            "compliance_score", "approval_rate", "avg_wage_ratio",
-        ])
+        SORT_OPTIONS = ["total_lcas", "total_workers", "avg_wage",
+                        "compliance_score", "approval_rate", "avg_wage_ratio"]
+        sort_by = st.selectbox("Sort by", SORT_OPTIONS)
+    with col3:
+        conn = get_db()
+        sector_rows = conn.execute(
+            "SELECT DISTINCT industry_sector FROM employer_profiles WHERE industry_sector IS NOT NULL ORDER BY industry_sector"
+        ).fetchall()
+        sector_options = ["All Sectors"] + [r["industry_sector"] for r in sector_rows]
+        sector_filter = st.selectbox("Industry Sector", sector_options)
+
+    # Validate sort column against whitelist
+    if sort_by not in SORT_OPTIONS:
+        sort_by = "total_lcas"
+
+    sector_clause = ""
+    params = [min_lcas]
+    if sector_filter != "All Sectors":
+        sector_clause = "AND industry_sector = ?"
+        params.append(sector_filter)
 
     df = query(f"""
         SELECT employer_name, total_lcas, total_workers,
@@ -239,12 +258,12 @@ def _top_employers_tab():
                ROUND(avg_wage_ratio, 3) as wage_ratio,
                approval_rate, whd_violations, is_debarred,
                ROUND(compliance_score, 3) as compliance_score,
-               source_types
+               industry_sector, source_types
         FROM employer_profiles
-        WHERE total_lcas >= ?
+        WHERE total_lcas >= ? {sector_clause}
         ORDER BY {sort_by} DESC
         LIMIT 100
-    """, (min_lcas,))
+    """, tuple(params))
 
     if not df.empty:
         st.dataframe(df, use_container_width=True, height=500)
@@ -312,6 +331,162 @@ def _compliance_tab():
     """)
     if not df.empty:
         st.dataframe(df, use_container_width=True)
+
+
+def _industry_tab():
+    st.subheader("Industry Sector Analysis")
+
+    # KPI row
+    conn = get_db()
+    row = conn.execute(
+        "SELECT COUNT(DISTINCT industry_sector) as n FROM employer_profiles WHERE industry_sector IS NOT NULL"
+    ).fetchone()
+    total_sectors = row["n"] if row else 0
+    row = conn.execute(
+        "SELECT COUNT(*) as n FROM employer_profiles WHERE industry_sector IS NOT NULL"
+    ).fetchone()
+    classified = row["n"] if row else 0
+    row = conn.execute("SELECT COUNT(*) as n FROM employer_profiles").fetchone()
+    total_profiles = row["n"] if row else 0
+
+    c1, c2, c3 = st.columns(3)
+    c1.metric("Industry Sectors", f"{total_sectors}")
+    c2.metric("Classified Profiles", f"{classified:,}")
+    c3.metric("Classification Rate", f"{100*classified/total_profiles:.1f}%" if total_profiles else "0%")
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        # H-1B filing volume by sector
+        df = query("""
+            SELECT industry_sector, SUM(total_lcas) as total_lcas,
+                   COUNT(*) as employers
+            FROM employer_profiles
+            WHERE industry_sector IS NOT NULL
+            GROUP BY industry_sector
+            ORDER BY total_lcas DESC
+        """)
+        if not df.empty:
+            fig = px.bar(df, x="total_lcas", y="industry_sector", orientation="h",
+                         title="H-1B LCA Volume by Industry Sector",
+                         labels={"total_lcas": "LCA Applications", "industry_sector": ""},
+                         hover_data=["employers"])
+            fig.update_layout(yaxis=dict(autorange="reversed"), height=500)
+            st.plotly_chart(fig, use_container_width=True)
+
+    with col2:
+        # Average wage ratio by sector
+        df = query("""
+            SELECT industry_sector,
+                   ROUND(AVG(avg_wage_ratio), 3) as avg_wage_ratio,
+                   ROUND(AVG(avg_wage), 0) as avg_wage,
+                   COUNT(*) as employers
+            FROM employer_profiles
+            WHERE industry_sector IS NOT NULL
+                  AND avg_wage_ratio IS NOT NULL AND avg_wage_ratio > 0
+            GROUP BY industry_sector
+            HAVING employers >= 5
+            ORDER BY avg_wage_ratio DESC
+        """)
+        if not df.empty:
+            fig = px.bar(df, x="avg_wage_ratio", y="industry_sector", orientation="h",
+                         title="Avg Wage Ratio by Industry Sector",
+                         labels={"avg_wage_ratio": "Avg Wage / Prevailing Wage",
+                                 "industry_sector": ""},
+                         hover_data=["avg_wage", "employers"])
+            fig.update_layout(yaxis=dict(autorange="reversed"), height=500)
+            fig.add_vline(x=1.0, line_dash="dash", line_color="red",
+                          annotation_text="Prevailing Wage")
+            st.plotly_chart(fig, use_container_width=True)
+
+    col3, col4 = st.columns(2)
+
+    with col3:
+        # Compliance score by sector
+        df = query("""
+            SELECT industry_sector,
+                   ROUND(AVG(compliance_score), 3) as avg_compliance,
+                   COUNT(*) as employers
+            FROM employer_profiles
+            WHERE industry_sector IS NOT NULL
+                  AND compliance_score IS NOT NULL
+            GROUP BY industry_sector
+            HAVING employers >= 5
+            ORDER BY avg_compliance DESC
+        """)
+        if not df.empty:
+            fig = px.bar(df, x="avg_compliance", y="industry_sector", orientation="h",
+                         title="Avg Compliance Score by Industry Sector",
+                         labels={"avg_compliance": "Avg Compliance Score",
+                                 "industry_sector": ""},
+                         hover_data=["employers"])
+            fig.update_layout(yaxis=dict(autorange="reversed"), height=500)
+            st.plotly_chart(fig, use_container_width=True)
+
+    with col4:
+        # Average wage by sector
+        df = query("""
+            SELECT industry_sector,
+                   ROUND(AVG(avg_wage), 0) as avg_wage,
+                   COUNT(*) as employers
+            FROM employer_profiles
+            WHERE industry_sector IS NOT NULL
+                  AND avg_wage IS NOT NULL AND avg_wage > 0
+            GROUP BY industry_sector
+            HAVING employers >= 5
+            ORDER BY avg_wage DESC
+        """)
+        if not df.empty:
+            fig = px.bar(df, x="avg_wage", y="industry_sector", orientation="h",
+                         title="Avg H-1B Wage by Industry Sector",
+                         labels={"avg_wage": "Average Wage ($)",
+                                 "industry_sector": ""},
+                         hover_data=["employers"])
+            fig.update_layout(yaxis=dict(autorange="reversed"), height=500)
+            st.plotly_chart(fig, use_container_width=True)
+
+    # Sector detail table
+    st.subheader("Industry Sector Summary")
+    df = query("""
+        SELECT industry_sector as "Sector",
+               COUNT(*) as "Employers",
+               SUM(total_lcas) as "Total LCAs",
+               SUM(total_workers) as "Total Workers",
+               ROUND(AVG(avg_wage), 0) as "Avg Wage",
+               ROUND(AVG(avg_wage_ratio), 3) as "Avg Wage Ratio",
+               ROUND(AVG(compliance_score), 3) as "Avg Compliance"
+        FROM employer_profiles
+        WHERE industry_sector IS NOT NULL
+        GROUP BY industry_sector
+        ORDER BY "Total LCAs" DESC
+    """)
+    if not df.empty:
+        st.dataframe(df, use_container_width=True, height=400)
+
+    # Top employers per sector (filterable)
+    st.subheader("Top Employers by Sector")
+    sectors = query("""
+        SELECT DISTINCT industry_sector
+        FROM employer_profiles
+        WHERE industry_sector IS NOT NULL
+        ORDER BY industry_sector
+    """)
+    if not sectors.empty:
+        selected_sector = st.selectbox("Select sector:", sectors["industry_sector"].tolist())
+        if selected_sector:
+            df = query("""
+                SELECT employer_name, total_lcas, total_workers,
+                       ROUND(avg_wage, 0) as avg_wage,
+                       ROUND(avg_wage_ratio, 3) as wage_ratio,
+                       ROUND(compliance_score, 3) as compliance_score,
+                       industry_subsector
+                FROM employer_profiles
+                WHERE industry_sector = ?
+                ORDER BY total_lcas DESC
+                LIMIT 25
+            """, (selected_sector,))
+            if not df.empty:
+                st.dataframe(df, use_container_width=True)
 
 
 def _geographic_tab():
@@ -465,10 +640,14 @@ def _debarments_tab():
 def _explorer_tab():
     st.subheader("Data Explorer")
 
-    table = st.selectbox("Table", [
-        "employer_profiles", "lca_applications", "uscis_employers",
-        "debarments", "cross_links",
-    ])
+    ALLOWED_TABLES = ["employer_profiles", "lca_applications", "uscis_employers",
+                       "debarments", "cross_links"]
+    table = st.selectbox("Table", ALLOWED_TABLES)
+
+    # Validate table name against whitelist
+    if table not in ALLOWED_TABLES:
+        st.error("Invalid table selection")
+        return
 
     conn = get_db()
     count = conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]

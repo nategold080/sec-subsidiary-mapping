@@ -162,6 +162,15 @@ def init_db(conn: sqlite3.Connection | None = None) -> None:
             created_at TEXT DEFAULT (datetime('now'))
         );
 
+        CREATE TABLE IF NOT EXISTS naics_codes (
+            naics_code TEXT PRIMARY KEY,
+            naics_description TEXT NOT NULL,
+            sector_code TEXT,
+            sector_name TEXT,
+            subsector_code TEXT,
+            subsector_name TEXT
+        );
+
         CREATE INDEX IF NOT EXISTS idx_lca_employer ON lca_applications(employer_name);
         CREATE INDEX IF NOT EXISTS idx_lca_ein ON lca_applications(employer_ein);
         CREATE INDEX IF NOT EXISTS idx_lca_state ON lca_applications(employer_state);
@@ -186,7 +195,23 @@ def init_db(conn: sqlite3.Connection | None = None) -> None:
 
         CREATE INDEX IF NOT EXISTS idx_xlink_source ON cross_links(source_type, source_id);
         CREATE INDEX IF NOT EXISTS idx_xlink_target ON cross_links(target_type, target_id);
+
+        CREATE INDEX IF NOT EXISTS idx_naics_sector ON naics_codes(sector_code);
+        CREATE INDEX IF NOT EXISTS idx_lca_naics ON lca_applications(naics_code);
     """)
+
+    # Add new columns to employer_profiles (idempotent)
+    for col, coltype in [
+        ("primary_naics", "TEXT"),
+        ("industry_sector", "TEXT"),
+        ("industry_subsector", "TEXT"),
+    ]:
+        try:
+            conn.execute(f"ALTER TABLE employer_profiles ADD COLUMN {col} {coltype}")
+        except sqlite3.OperationalError:
+            pass  # Column already exists
+
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_profile_sector ON employer_profiles(industry_sector)")
     conn.commit()
 
     if close:
@@ -301,6 +326,24 @@ def upsert_debarments(conn: sqlite3.Connection, records: list[dict]) -> int:
     return inserted
 
 
+def upsert_naics_codes(conn: sqlite3.Connection, records: list[dict]) -> int:
+    """Insert or update NAICS code records."""
+    inserted = 0
+    for rec in records:
+        conn.execute("""
+            INSERT OR REPLACE INTO naics_codes (
+                naics_code, naics_description, sector_code, sector_name,
+                subsector_code, subsector_name
+            ) VALUES (
+                :naics_code, :naics_description, :sector_code, :sector_name,
+                :subsector_code, :subsector_name
+            )
+        """, rec)
+        inserted += 1
+    conn.commit()
+    return inserted
+
+
 def get_stats(conn: sqlite3.Connection | None = None) -> dict:
     """Get database statistics."""
     close = False
@@ -351,6 +394,20 @@ def get_stats(conn: sqlite3.Connection | None = None) -> dict:
         "SELECT COUNT(DISTINCT employer_state) FROM lca_applications WHERE employer_state IS NOT NULL"
     ).fetchone()
     stats["states"] = row[0]
+
+    # NAICS stats
+    row = conn.execute("SELECT COUNT(*) FROM naics_codes").fetchone()
+    stats["naics_codes"] = row[0]
+
+    row = conn.execute(
+        "SELECT COUNT(DISTINCT industry_sector) FROM employer_profiles WHERE industry_sector IS NOT NULL"
+    ).fetchone()
+    stats["industry_sectors"] = row[0]
+
+    row = conn.execute(
+        "SELECT COUNT(*) FROM employer_profiles WHERE industry_sector IS NOT NULL"
+    ).fetchone()
+    stats["profiles_with_sector"] = row[0]
 
     if close:
         conn.close()

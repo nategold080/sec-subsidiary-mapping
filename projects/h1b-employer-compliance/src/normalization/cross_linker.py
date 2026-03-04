@@ -11,6 +11,7 @@ import sqlite3
 from collections import defaultdict
 
 from src.normalization.employers import normalize_employer_name
+from src.normalization.naics_classifier import classify_naics, load_naics_config
 from src.validation.quality import compute_compliance_score
 
 
@@ -243,7 +244,7 @@ def build_employer_profiles(conn: sqlite3.Connection) -> int:
         SELECT employer_name, employer_state, employer_ein,
                annualized_wage, annualized_pw, wage_ratio,
                soc_code, worksite_state, fiscal_year, total_workers,
-               case_status
+               case_status, naics_code
         FROM lca_applications
         WHERE employer_name IS NOT NULL AND employer_name != ''
     """).fetchall()
@@ -253,6 +254,7 @@ def build_employer_profiles(conn: sqlite3.Connection) -> int:
         "wage_ratios": [], "soc_codes": defaultdict(int),
         "worksites": defaultdict(int), "states": set(),
         "fiscal_years": set(), "workers": 0, "lcas": 0,
+        "naics_codes": defaultdict(int),
     })
 
     for row in lca_rows:
@@ -279,6 +281,8 @@ def build_employer_profiles(conn: sqlite3.Connection) -> int:
             d["fiscal_years"].add(row["fiscal_year"])
         if row["total_workers"]:
             d["workers"] += row["total_workers"]
+        if row["naics_code"]:
+            d["naics_codes"][row["naics_code"]] += 1
         d["lcas"] += 1
 
     # Index USCIS data by normalized name
@@ -315,6 +319,12 @@ def build_employer_profiles(conn: sqlite3.Connection) -> int:
         norm = normalize_employer_name(row["employer_name"])
         if norm:
             debarred.add(norm)
+
+    # Load NAICS config for sector classification
+    try:
+        naics_config = load_naics_config()
+    except Exception:
+        naics_config = {"sectors": {}, "subsectors": {}}
 
     # Build profiles
     profiles = 0
@@ -368,6 +378,16 @@ def build_employer_profiles(conn: sqlite3.Connection) -> int:
         if norm_name in debarred:
             source_types.append("DEBAR")
 
+        # NAICS classification
+        primary_naics = None
+        industry_sector = None
+        industry_subsector = None
+        if data["naics_codes"]:
+            primary_naics = max(data["naics_codes"].items(), key=lambda x: x[1])[0]
+            classification = classify_naics(primary_naics, naics_config)
+            industry_sector = classification["sector_name"]
+            industry_subsector = classification["subsector_name"]
+
         quality = min(1.0, len(source_types) * 0.25 + (0.25 if avg_wr else 0))
 
         batch.append((
@@ -381,6 +401,7 @@ def build_employer_profiles(conn: sqlite3.Connection) -> int:
             ",".join(sorted(data["states"])),
             ",".join(str(y) for y in sorted(data["fiscal_years"])),
             ",".join(source_types), quality,
+            primary_naics, industry_sector, industry_subsector,
         ))
         profiles += 1
 
@@ -394,8 +415,10 @@ def build_employer_profiles(conn: sqlite3.Connection) -> int:
             whd_violations, total_back_wages, total_penalties,
             is_debarred, compliance_score,
             top_soc_codes, top_worksites, states_active,
-            fiscal_years, source_types, quality_score
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            fiscal_years, source_types, quality_score,
+            primary_naics, industry_sector, industry_subsector
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                  ?, ?, ?)
     """, batch)
 
     conn.commit()

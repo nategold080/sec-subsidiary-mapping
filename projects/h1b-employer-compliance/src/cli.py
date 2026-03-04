@@ -124,6 +124,27 @@ def scrape_whd(force):
 
 
 @cli.command()
+def enrich_naics():
+    """Load NAICS reference data and classify employer profiles by industry sector."""
+    from src.normalization.naics_classifier import (
+        load_naics_reference_table, classify_employer_profiles,
+    )
+
+    conn = get_connection()
+    init_db(conn)
+
+    click.echo("Loading NAICS reference table...")
+    n_codes = load_naics_reference_table(conn)
+    click.echo(f"  Loaded {n_codes} NAICS codes")
+
+    click.echo("Classifying employer profiles by industry sector...")
+    n_classified = classify_employer_profiles(conn)
+    click.echo(f"  Classified {n_classified:,} employer profiles")
+
+    conn.close()
+
+
+@cli.command()
 def crosslink():
     """Build cross-links between data sources and employer profiles."""
     from src.normalization.cross_linker import build_cross_links, build_employer_profiles
@@ -195,6 +216,7 @@ def pipeline():
     from src.scrapers.uscis import download_uscis, parse_uscis_csv, AVAILABLE_YEARS as USCIS_YEARS
     from src.scrapers.whd import download_debarments
     from src.normalization.cross_linker import build_cross_links, build_employer_profiles
+    from src.normalization.naics_classifier import load_naics_reference_table
     from src.export.exporter import export_all
 
     conn = get_connection()
@@ -247,9 +269,16 @@ def pipeline():
     except Exception as e:
         click.echo(f"  Error: {e}")
 
-    # 4. Cross-links
+    # 4. NAICS Reference
     click.echo("\n" + "=" * 50)
-    click.echo("PHASE 4: Cross-Linking")
+    click.echo("PHASE 4: NAICS Reference Data")
+    click.echo("=" * 50)
+    n_codes = load_naics_reference_table(conn)
+    click.echo(f"  {n_codes} NAICS codes loaded")
+
+    # 5. Cross-links
+    click.echo("\n" + "=" * 50)
+    click.echo("PHASE 5: Cross-Linking")
     click.echo("=" * 50)
     n_links = build_cross_links(conn)
     click.echo(f"  {n_links:,} cross-links created")
@@ -257,9 +286,9 @@ def pipeline():
     n_profiles = build_employer_profiles(conn)
     click.echo(f"  {n_profiles:,} employer profiles built")
 
-    # 5. Export
+    # 6. Export
     click.echo("\n" + "=" * 50)
-    click.echo("PHASE 5: Export")
+    click.echo("PHASE 6: Export")
     click.echo("=" * 50)
     results = export_all(conn)
     for name, count in results.items():

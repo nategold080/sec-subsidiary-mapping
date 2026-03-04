@@ -22,9 +22,11 @@ def export_all(conn: sqlite3.Connection, output_dir: Path | None = None) -> dict
     results["cross_links_csv"] = _export_table_csv(conn, "cross_links", out / "cross_links.csv")
 
     results["profiles_json"] = _export_profiles_json(conn, out / "employer_profiles.json")
+    results["naics_csv"] = _export_table_csv(conn, "naics_codes", out / "naics_codes.csv")
     results["summary_md"] = _export_summary_md(conn, out / "summary.md")
     results["top_employers_csv"] = _export_top_employers(conn, out / "top_employers.csv")
     results["flagged_employers_csv"] = _export_flagged_employers(conn, out / "flagged_employers.csv")
+    results["sector_summary_csv"] = _export_sector_summary(conn, out / "sector_summary.csv")
 
     return results
 
@@ -76,7 +78,7 @@ def _export_top_employers(conn: sqlite3.Connection, path: Path) -> int:
         SELECT employer_name, normalized_name, total_lcas, total_workers,
                avg_wage, avg_wage_ratio, approval_rate, whd_violations,
                total_back_wages, is_debarred, compliance_score,
-               states_active, fiscal_years, source_types
+               industry_sector, states_active, fiscal_years, source_types
         FROM employer_profiles
         ORDER BY total_lcas DESC
         LIMIT 500
@@ -86,7 +88,7 @@ def _export_top_employers(conn: sqlite3.Connection, path: Path) -> int:
         SELECT employer_name, normalized_name, total_lcas, total_workers,
                avg_wage, avg_wage_ratio, approval_rate, whd_violations,
                total_back_wages, is_debarred, compliance_score,
-               states_active, fiscal_years, source_types
+               industry_sector, states_active, fiscal_years, source_types
         FROM employer_profiles LIMIT 1
     """).description]
 
@@ -127,6 +129,34 @@ def _export_flagged_employers(conn: sqlite3.Connection, path: Path) -> int:
     with open(path, "w", newline="", encoding="utf-8") as f:
         writer = csv.writer(f)
         writer.writerow(cols)
+        for row in rows:
+            writer.writerow(list(row))
+
+    return len(rows)
+
+
+def _export_sector_summary(conn: sqlite3.Connection, path: Path) -> int:
+    """Export industry sector summary statistics."""
+    rows = conn.execute("""
+        SELECT industry_sector, COUNT(*) as employers,
+               SUM(total_lcas) as total_lcas,
+               SUM(total_workers) as total_workers,
+               ROUND(AVG(avg_wage), 0) as avg_wage,
+               ROUND(AVG(avg_wage_ratio), 3) as avg_wage_ratio,
+               ROUND(AVG(compliance_score), 3) as avg_compliance
+        FROM employer_profiles
+        WHERE industry_sector IS NOT NULL
+        GROUP BY industry_sector
+        ORDER BY total_lcas DESC
+    """).fetchall()
+
+    if not rows:
+        return 0
+
+    with open(path, "w", newline="", encoding="utf-8") as f:
+        writer = csv.writer(f)
+        writer.writerow(["industry_sector", "employers", "total_lcas", "total_workers",
+                         "avg_wage", "avg_wage_ratio", "avg_compliance"])
         for row in rows:
             writer.writerow(list(row))
 
@@ -186,6 +216,34 @@ def _export_summary_md(conn: sqlite3.Connection, path: Path) -> int:
             f"| {row['employer_name'][:40]} | {row['total_lcas']:,} | "
             f"{row['total_workers']:,} | {wage} | {comp} |"
         )
+
+    # Industry sector summary
+    sectors = conn.execute("""
+        SELECT industry_sector, COUNT(*) as employers,
+               SUM(total_lcas) as total_lcas,
+               ROUND(AVG(avg_wage), 0) as avg_wage,
+               ROUND(AVG(avg_wage_ratio), 3) as avg_wage_ratio
+        FROM employer_profiles
+        WHERE industry_sector IS NOT NULL
+        GROUP BY industry_sector
+        ORDER BY total_lcas DESC LIMIT 10
+    """).fetchall()
+
+    if sectors:
+        lines.extend([
+            "",
+            "## Top 10 Industry Sectors by H-1B Volume",
+            "",
+            "| Sector | Employers | LCAs | Avg Wage | Wage Ratio |",
+            "|--------|-----------|------|----------|------------|",
+        ])
+        for row in sectors:
+            wage = f"${row['avg_wage']:,.0f}" if row['avg_wage'] else "N/A"
+            wr = f"{row['avg_wage_ratio']:.3f}" if row['avg_wage_ratio'] else "N/A"
+            lines.append(
+                f"| {row['industry_sector'][:40]} | {row['employers']:,} | "
+                f"{row['total_lcas']:,} | {wage} | {wr} |"
+            )
 
     if flagged:
         lines.extend([
