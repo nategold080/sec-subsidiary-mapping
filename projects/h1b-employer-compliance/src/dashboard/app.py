@@ -43,8 +43,8 @@ def main():
 
     tabs = st.tabs([
         "Overview", "Employer Search", "Top Employers",
-        "Compliance Analysis", "Industry Analysis", "Geographic",
-        "USCIS Petitions", "Debarments", "Data Explorer",
+        "Compliance Analysis", "Industry Analysis", "Financial Context",
+        "Geographic", "USCIS Petitions", "Debarments", "Data Explorer",
     ])
 
     with tabs[0]:
@@ -58,12 +58,14 @@ def main():
     with tabs[4]:
         _industry_tab()
     with tabs[5]:
-        _geographic_tab()
+        _financial_tab()
     with tabs[6]:
-        _uscis_tab()
+        _geographic_tab()
     with tabs[7]:
-        _debarments_tab()
+        _uscis_tab()
     with tabs[8]:
+        _debarments_tab()
+    with tabs[9]:
         _explorer_tab()
 
     st.markdown("---")
@@ -489,6 +491,142 @@ def _industry_tab():
                 st.dataframe(df, use_container_width=True)
 
 
+def _financial_tab():
+    st.subheader("Financial Context — Public Company H-1B Analysis")
+
+    conn = get_db()
+    row = conn.execute("SELECT COUNT(*) as n FROM public_companies").fetchone()
+    n_companies = row["n"] if row else 0
+    row = conn.execute("SELECT COUNT(*) as n FROM employer_profiles WHERE is_public = 1").fetchone()
+    n_public = row["n"] if row else 0
+    row = conn.execute("SELECT COUNT(*) as n FROM company_financials").fetchone()
+    n_fin = row["n"] if row else 0
+
+    c1, c2, c3 = st.columns(3)
+    c1.metric("Public Companies Matched", f"{n_companies:,}")
+    c2.metric("Public Employer Profiles", f"{n_public:,}")
+    c3.metric("Financial Records", f"{n_fin:,}")
+
+    if n_public == 0:
+        st.info("No public company data available yet. Run `enrich-sec` to link employer profiles to SEC EDGAR financial data.")
+        return
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        # Top public companies by H-1B volume
+        df = query("""
+            SELECT ep.employer_name, ep.ticker, ep.total_lcas,
+                   ep.total_workers, ROUND(ep.avg_wage, 0) as avg_wage,
+                   ROUND(ep.revenue / 1e9, 2) as revenue_b,
+                   ep.employees,
+                   ROUND(ep.h1b_per_1000_employees, 2) as h1b_per_1000
+            FROM employer_profiles ep
+            WHERE ep.is_public = 1 AND ep.revenue IS NOT NULL
+            ORDER BY ep.total_lcas DESC
+            LIMIT 20
+        """)
+        if not df.empty:
+            fig = px.bar(df, x="total_lcas", y="employer_name", orientation="h",
+                         title="Top 20 Public Companies by H-1B Volume",
+                         labels={"total_lcas": "LCA Applications", "employer_name": ""},
+                         hover_data=["ticker", "revenue_b"])
+            fig.update_layout(yaxis=dict(autorange="reversed"), height=500)
+            st.plotly_chart(fig, use_container_width=True)
+
+    with col2:
+        # Revenue vs H-1B volume scatter
+        df = query("""
+            SELECT ep.employer_name, ep.ticker,
+                   ep.total_lcas,
+                   ROUND(ep.revenue / 1e9, 2) as revenue_b,
+                   ROUND(ep.avg_wage, 0) as avg_wage,
+                   ROUND(ep.h1b_per_1000_employees, 2) as h1b_per_1000
+            FROM employer_profiles ep
+            WHERE ep.is_public = 1 AND ep.revenue IS NOT NULL
+                  AND ep.total_lcas >= 10
+            ORDER BY ep.revenue DESC
+            LIMIT 100
+        """)
+        if not df.empty:
+            fig = px.scatter(df, x="revenue_b", y="total_lcas",
+                             hover_name="employer_name",
+                             size="h1b_per_1000",
+                             title="Revenue vs H-1B Filing Volume",
+                             labels={"revenue_b": "Revenue ($B)",
+                                     "total_lcas": "LCA Applications",
+                                     "h1b_per_1000": "H-1B per 1K Employees"})
+            fig.update_layout(height=500)
+            st.plotly_chart(fig, use_container_width=True)
+
+    col3, col4 = st.columns(2)
+
+    with col3:
+        # H-1B intensity (per 1000 employees)
+        df = query("""
+            SELECT ep.employer_name, ep.ticker,
+                   ROUND(ep.h1b_per_1000_employees, 2) as h1b_per_1000,
+                   ep.employees, ep.total_lcas
+            FROM employer_profiles ep
+            WHERE ep.is_public = 1
+                  AND ep.h1b_per_1000_employees IS NOT NULL
+                  AND ep.employees >= 1000
+            ORDER BY ep.h1b_per_1000_employees DESC
+            LIMIT 20
+        """)
+        if not df.empty:
+            fig = px.bar(df, x="h1b_per_1000", y="employer_name", orientation="h",
+                         title="H-1B Intensity: Applications per 1,000 Employees",
+                         labels={"h1b_per_1000": "H-1B per 1K Employees",
+                                 "employer_name": ""},
+                         hover_data=["ticker", "employees", "total_lcas"])
+            fig.update_layout(yaxis=dict(autorange="reversed"), height=500)
+            st.plotly_chart(fig, use_container_width=True)
+
+    with col4:
+        # Public vs Private comparison
+        df = query("""
+            SELECT
+                CASE WHEN is_public = 1 THEN 'Public' ELSE 'Private' END as company_type,
+                COUNT(*) as employers,
+                ROUND(AVG(avg_wage), 0) as avg_wage,
+                ROUND(AVG(avg_wage_ratio), 3) as avg_wage_ratio,
+                ROUND(AVG(compliance_score), 3) as avg_compliance
+            FROM employer_profiles
+            WHERE compliance_score IS NOT NULL AND total_lcas >= 10
+            GROUP BY company_type
+        """)
+        if not df.empty:
+            fig = px.bar(df, x="company_type", y=["avg_wage_ratio", "avg_compliance"],
+                         barmode="group",
+                         title="Public vs Private H-1B Employers",
+                         labels={"company_type": "", "value": "Score / Ratio"})
+            st.plotly_chart(fig, use_container_width=True)
+
+    # Detailed public company table
+    st.subheader("Public Company H-1B Profiles")
+    df = query("""
+        SELECT ep.employer_name as "Company", ep.ticker as "Ticker",
+               ep.total_lcas as "LCAs", ep.total_workers as "Workers",
+               ROUND(ep.avg_wage, 0) as "Avg Wage",
+               ROUND(ep.avg_wage_ratio, 3) as "Wage Ratio",
+               ROUND(ep.compliance_score, 3) as "Compliance",
+               ROUND(ep.revenue / 1e9, 2) as "Revenue ($B)",
+               ep.employees as "Employees",
+               ROUND(ep.h1b_per_1000_employees, 2) as "H-1B/1K Emp",
+               ROUND(ep.revenue_per_h1b / 1e6, 2) as "Rev/H-1B ($M)"
+        FROM employer_profiles ep
+        WHERE ep.is_public = 1
+        ORDER BY ep.total_lcas DESC
+        LIMIT 100
+    """)
+    if not df.empty:
+        st.dataframe(df, use_container_width=True, height=400)
+        csv = df.to_csv(index=False)
+        st.download_button("Download Public Company Data", csv,
+                           "public_company_h1b.csv", "text/csv")
+
+
 def _geographic_tab():
     st.subheader("Geographic Analysis")
 
@@ -641,7 +779,8 @@ def _explorer_tab():
     st.subheader("Data Explorer")
 
     ALLOWED_TABLES = ["employer_profiles", "lca_applications", "uscis_employers",
-                       "debarments", "cross_links"]
+                       "debarments", "cross_links", "public_companies",
+                       "company_financials", "employer_sec_links", "naics_codes"]
     table = st.selectbox("Table", ALLOWED_TABLES)
 
     # Validate table name against whitelist

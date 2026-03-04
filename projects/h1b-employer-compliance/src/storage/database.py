@@ -171,6 +171,44 @@ def init_db(conn: sqlite3.Connection | None = None) -> None:
             subsector_name TEXT
         );
 
+        CREATE TABLE IF NOT EXISTS public_companies (
+            sec_cik INTEGER PRIMARY KEY,
+            company_name TEXT NOT NULL,
+            ticker TEXT,
+            exchange TEXT,
+            sic_code TEXT,
+            sic_description TEXT,
+            state_of_incorporation TEXT,
+            business_city TEXT,
+            business_state TEXT,
+            created_at TEXT DEFAULT (datetime('now'))
+        );
+
+        CREATE TABLE IF NOT EXISTS company_financials (
+            sec_cik INTEGER NOT NULL,
+            fiscal_year INTEGER NOT NULL,
+            revenue REAL,
+            total_assets REAL,
+            net_income REAL,
+            employees INTEGER,
+            h1b_per_employee REAL,
+            h1b_wage_to_revenue REAL,
+            quality_score REAL DEFAULT 0.0,
+            created_at TEXT DEFAULT (datetime('now')),
+            PRIMARY KEY (sec_cik, fiscal_year)
+        );
+
+        CREATE TABLE IF NOT EXISTS employer_sec_links (
+            employer_name TEXT NOT NULL,
+            employer_normalized TEXT,
+            sec_cik INTEGER NOT NULL,
+            link_method TEXT,
+            confidence REAL DEFAULT 0.0,
+            is_subsidiary INTEGER DEFAULT 0,
+            created_at TEXT DEFAULT (datetime('now')),
+            PRIMARY KEY (employer_name, sec_cik)
+        );
+
         CREATE INDEX IF NOT EXISTS idx_lca_employer ON lca_applications(employer_name);
         CREATE INDEX IF NOT EXISTS idx_lca_ein ON lca_applications(employer_ein);
         CREATE INDEX IF NOT EXISTS idx_lca_state ON lca_applications(employer_state);
@@ -198,6 +236,13 @@ def init_db(conn: sqlite3.Connection | None = None) -> None:
 
         CREATE INDEX IF NOT EXISTS idx_naics_sector ON naics_codes(sector_code);
         CREATE INDEX IF NOT EXISTS idx_lca_naics ON lca_applications(naics_code);
+
+        CREATE INDEX IF NOT EXISTS idx_public_ticker ON public_companies(ticker);
+        CREATE INDEX IF NOT EXISTS idx_public_sic ON public_companies(sic_code);
+        CREATE INDEX IF NOT EXISTS idx_financials_cik ON company_financials(sec_cik);
+        CREATE INDEX IF NOT EXISTS idx_financials_year ON company_financials(fiscal_year);
+        CREATE INDEX IF NOT EXISTS idx_employer_sec_cik ON employer_sec_links(sec_cik);
+        CREATE INDEX IF NOT EXISTS idx_employer_sec_norm ON employer_sec_links(employer_normalized);
     """)
 
     # Add new columns to employer_profiles (idempotent)
@@ -205,6 +250,13 @@ def init_db(conn: sqlite3.Connection | None = None) -> None:
         ("primary_naics", "TEXT"),
         ("industry_sector", "TEXT"),
         ("industry_subsector", "TEXT"),
+        ("sec_cik", "INTEGER"),
+        ("ticker", "TEXT"),
+        ("is_public", "INTEGER DEFAULT 0"),
+        ("revenue", "REAL"),
+        ("employees", "INTEGER"),
+        ("h1b_per_1000_employees", "REAL"),
+        ("revenue_per_h1b", "REAL"),
     ]:
         try:
             conn.execute(f"ALTER TABLE employer_profiles ADD COLUMN {col} {coltype}")
@@ -326,6 +378,64 @@ def upsert_debarments(conn: sqlite3.Connection, records: list[dict]) -> int:
     return inserted
 
 
+def upsert_public_companies(conn: sqlite3.Connection, records: list[dict]) -> int:
+    """Insert or update public company records."""
+    inserted = 0
+    for rec in records:
+        conn.execute("""
+            INSERT OR REPLACE INTO public_companies (
+                sec_cik, company_name, ticker, exchange,
+                sic_code, sic_description, state_of_incorporation,
+                business_city, business_state
+            ) VALUES (
+                :sec_cik, :company_name, :ticker, :exchange,
+                :sic_code, :sic_description, :state_of_incorporation,
+                :business_city, :business_state
+            )
+        """, rec)
+        inserted += 1
+    conn.commit()
+    return inserted
+
+
+def upsert_company_financials(conn: sqlite3.Connection, records: list[dict]) -> int:
+    """Insert or update company financial records."""
+    inserted = 0
+    for rec in records:
+        conn.execute("""
+            INSERT OR REPLACE INTO company_financials (
+                sec_cik, fiscal_year, revenue, total_assets,
+                net_income, employees, h1b_per_employee,
+                h1b_wage_to_revenue, quality_score
+            ) VALUES (
+                :sec_cik, :fiscal_year, :revenue, :total_assets,
+                :net_income, :employees, :h1b_per_employee,
+                :h1b_wage_to_revenue, :quality_score
+            )
+        """, rec)
+        inserted += 1
+    conn.commit()
+    return inserted
+
+
+def upsert_employer_sec_links(conn: sqlite3.Connection, records: list[dict]) -> int:
+    """Insert or update employer-to-SEC company links."""
+    inserted = 0
+    for rec in records:
+        conn.execute("""
+            INSERT OR REPLACE INTO employer_sec_links (
+                employer_name, employer_normalized, sec_cik,
+                link_method, confidence, is_subsidiary
+            ) VALUES (
+                :employer_name, :employer_normalized, :sec_cik,
+                :link_method, :confidence, :is_subsidiary
+            )
+        """, rec)
+        inserted += 1
+    conn.commit()
+    return inserted
+
+
 def upsert_naics_codes(conn: sqlite3.Connection, records: list[dict]) -> int:
     """Insert or update NAICS code records."""
     inserted = 0
@@ -408,6 +518,21 @@ def get_stats(conn: sqlite3.Connection | None = None) -> dict:
         "SELECT COUNT(*) FROM employer_profiles WHERE industry_sector IS NOT NULL"
     ).fetchone()
     stats["profiles_with_sector"] = row[0]
+
+    # SEC stats
+    row = conn.execute("SELECT COUNT(*) FROM public_companies").fetchone()
+    stats["public_companies"] = row[0]
+
+    row = conn.execute("SELECT COUNT(*) FROM company_financials").fetchone()
+    stats["company_financials"] = row[0]
+
+    row = conn.execute("SELECT COUNT(*) FROM employer_sec_links").fetchone()
+    stats["employer_sec_links"] = row[0]
+
+    row = conn.execute(
+        "SELECT COUNT(*) FROM employer_profiles WHERE is_public = 1"
+    ).fetchone()
+    stats["public_employer_profiles"] = row[0]
 
     if close:
         conn.close()

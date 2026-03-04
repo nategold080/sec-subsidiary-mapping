@@ -23,6 +23,9 @@ def export_all(conn: sqlite3.Connection, output_dir: Path | None = None) -> dict
 
     results["profiles_json"] = _export_profiles_json(conn, out / "employer_profiles.json")
     results["naics_csv"] = _export_table_csv(conn, "naics_codes", out / "naics_codes.csv")
+    results["public_companies_csv"] = _export_table_csv(conn, "public_companies", out / "public_companies.csv")
+    results["company_financials_csv"] = _export_table_csv(conn, "company_financials", out / "company_financials.csv")
+    results["employer_sec_links_csv"] = _export_table_csv(conn, "employer_sec_links", out / "employer_sec_links.csv")
     results["summary_md"] = _export_summary_md(conn, out / "summary.md")
     results["top_employers_csv"] = _export_top_employers(conn, out / "top_employers.csv")
     results["flagged_employers_csv"] = _export_flagged_employers(conn, out / "flagged_employers.csv")
@@ -202,6 +205,9 @@ def _export_summary_md(conn: sqlite3.Connection, path: Path) -> int:
         f"- **Average Wage:** ${stats.get('avg_wage', 0):,.0f}",
         f"- **Total Workers Requested:** {stats.get('total_workers', 0):,}",
         f"- **Total Back Wages (WHD):** ${stats.get('total_back_wages', 0):,.0f}",
+        f"- **Public Companies Matched:** {stats.get('public_companies', 0):,}",
+        f"- **Financial Records:** {stats.get('company_financials', 0):,}",
+        f"- **Industry Sectors:** {stats.get('industry_sectors', 0)}",
         "",
         "## Top 20 H-1B Employers by LCA Volume",
         "",

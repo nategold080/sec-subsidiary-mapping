@@ -124,6 +124,56 @@ def scrape_whd(force):
 
 
 @cli.command()
+@click.option("--max-companies", "-m", default=500, help="Max companies to fetch financials for")
+@click.option("--skip-download", is_flag=True, help="Skip downloading (use cached data)")
+def enrich_sec(max_companies, skip_download):
+    """Enrich employer profiles with SEC EDGAR financial data."""
+    from src.scrapers.sec_downloader import download_company_tickers
+    from src.normalization.sec_matcher import (
+        match_employers_to_sec, import_sec_companies,
+        fetch_and_import_financials, enrich_company_metadata,
+        compute_h1b_financial_metrics,
+    )
+
+    conn = get_connection()
+    init_db(conn)
+
+    # Step 1: Download company tickers
+    click.echo("Downloading SEC company tickers...")
+    tickers_path = download_company_tickers(force=not skip_download)
+    click.echo(f"  Cached at {tickers_path}")
+
+    # Step 2: Match employers to SEC CIKs
+    click.echo("Matching employer profiles to SEC companies...")
+    n_matches = match_employers_to_sec(conn, tickers_path)
+    click.echo(f"  Found {n_matches:,} employer-SEC matches")
+
+    # Step 3: Import matched company records
+    click.echo("Importing matched public company records...")
+    n_companies = import_sec_companies(conn, tickers_path)
+    click.echo(f"  Imported {n_companies:,} public companies")
+
+    if not skip_download:
+        # Step 4: Fetch financial data
+        click.echo(f"Fetching XBRL financial data (up to {max_companies} companies)...")
+        n_fin = fetch_and_import_financials(conn, max_companies=max_companies)
+        click.echo(f"  Imported {n_fin:,} financial records")
+
+        # Step 5: Enrich with SIC codes
+        click.echo("Enriching company metadata (SIC codes, addresses)...")
+        n_meta = enrich_company_metadata(conn, max_companies=max_companies)
+        click.echo(f"  Updated {n_meta:,} companies")
+
+    # Step 6: Compute H-1B financial metrics
+    click.echo("Computing H-1B financial metrics...")
+    n_updated = compute_h1b_financial_metrics(conn)
+    click.echo(f"  Updated {n_updated:,} employer profiles")
+
+    conn.close()
+    click.echo("SEC enrichment complete.")
+
+
+@cli.command()
 def enrich_naics():
     """Load NAICS reference data and classify employer profiles by industry sector."""
     from src.normalization.naics_classifier import (
