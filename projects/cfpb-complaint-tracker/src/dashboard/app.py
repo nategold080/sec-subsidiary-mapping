@@ -35,7 +35,9 @@ st.set_page_config(
 # Constants & Theme
 # ---------------------------------------------------------------------------
 
-DB_PATH = Path(__file__).parent.parent.parent / "data" / "cfpb_tracker.db"
+_DATA_DIR = Path(__file__).parent.parent.parent / "data"
+_DEPLOY_DB = _DATA_DIR / "cfpb_tracker_deploy.db"
+DB_PATH = _DEPLOY_DB if _DEPLOY_DB.exists() else _DATA_DIR / "cfpb_tracker.db"
 
 COLOR_PRIMARY = "#0984E3"
 COLOR_BG = "#0E1117"

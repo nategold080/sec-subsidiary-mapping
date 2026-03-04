@@ -8,7 +8,10 @@ import plotly.express as px
 import plotly.graph_objects as go
 import pandas as pd
 
-DB_PATH = Path(__file__).parent.parent.parent / "data" / "cpsc_product_safety.db"
+_DATA_DIR = Path(__file__).parent.parent.parent / "data"
+_DEPLOY_DB = _DATA_DIR / "cpsc_product_safety_deploy.db"
+_FULL_DB = _DATA_DIR / "cpsc_product_safety.db"
+DB_PATH = _DEPLOY_DB if _DEPLOY_DB.exists() else _FULL_DB
 
 
 def _table_exists(conn, name):

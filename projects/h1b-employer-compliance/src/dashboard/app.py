@@ -8,7 +8,9 @@ import pandas as pd
 import plotly.express as px
 import streamlit as st
 
-DB_PATH = Path(__file__).parent.parent.parent / "data" / "h1b_compliance.db"
+_DATA_DIR = Path(__file__).parent.parent.parent / "data"
+_DEPLOY_DB = _DATA_DIR / "h1b_compliance_deploy.db"
+DB_PATH = _DEPLOY_DB if _DEPLOY_DB.exists() else _DATA_DIR / "h1b_compliance.db"
 
 _NO_DATA_MSG = "No data loaded yet. Run the pipeline first: `python -m src.cli pipeline`"
 
