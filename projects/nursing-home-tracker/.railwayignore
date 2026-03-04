@@ -13,5 +13,9 @@ scripts/
 *.zip
 *.gz
 
-# Override root .gitignore *.db exclusion
-!data/*.db
+# Exclude full databases (too large for deploy)
+data/nursing_homes.db
+data/nursing_home_tracker.db
+
+# Allow deploy database
+!data/nursing_homes_deploy.db

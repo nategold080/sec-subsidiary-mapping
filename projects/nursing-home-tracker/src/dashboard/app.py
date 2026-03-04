@@ -1,10 +1,13 @@
 """Streamlit Dashboard — Nursing Home Inspection & Deficiency Tracker.
 
-Interactive dashboard with 7 sections: National Overview, Deficiency Explorer,
-Ownership Analysis, Penalty Tracker, Quality Comparison, Geographic Map,
-and Facility Deep Dive.
+Interactive dashboard with 15 sections: National Overview, Deficiency Explorer,
+Ownership Analysis, Owner Portfolio, Ownership Changes, Penalty Tracker,
+Staffing Analysis, Financial Analysis, Related Party Transactions,
+California Financial Detail, Chain Report Cards, Star Rating Reality Check,
+Quality Comparison, Geographic Map, and Facility Deep Dive.
 """
 
+import os
 import sqlite3
 from pathlib import Path
 
@@ -14,7 +17,41 @@ import plotly.graph_objects as go
 import streamlit as st
 
 PROJECT_ROOT = Path(__file__).parent.parent.parent
-DB_PATH = PROJECT_ROOT / "data" / "nursing_homes.db"
+
+
+def _find_db():
+    """Find the best available database file.
+
+    Priority: DATABASE_URL env var → deploy DB → standard DB → glob fallback.
+    """
+    # 1. Environment variable (Railway sets this)
+    env_path = os.environ.get("DATABASE_PATH")
+    if env_path:
+        p = Path(env_path)
+        if p.exists():
+            return p
+
+    data_dir = PROJECT_ROOT / "data"
+
+    # 2. Deploy DB (compact, pre-aggregated)
+    deploy = data_dir / "nursing_homes_deploy.db"
+    if deploy.exists() and deploy.stat().st_size > 0:
+        return deploy
+
+    # 3. Standard full DB
+    full = data_dir / "nursing_homes.db"
+    if full.exists() and full.stat().st_size > 0:
+        return full
+
+    # 4. Glob fallback
+    for db in sorted(data_dir.glob("*.db"), key=lambda p: p.stat().st_size, reverse=True):
+        if db.stat().st_size > 0:
+            return db
+
+    return full  # Return default path even if missing
+
+
+DB_PATH = _find_db()
 
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
@@ -23,6 +60,15 @@ def _table_exists(conn, name):
     try:
         r = conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name=?", (name,)).fetchone()
         return r is not None
+    except Exception:
+        return False
+
+
+def _has_summary_table(name):
+    """Check if a pre-aggregated summary table exists in the deploy DB."""
+    try:
+        conn = get_db()
+        return _table_exists(conn, name)
     except Exception:
         return False
 
@@ -125,7 +171,7 @@ with st.sidebar:
 
     st.divider()
     st.markdown(
-        "**Built by [Nathan Goldberg](https://www.linkedin.com/in/nathan-goldberg-62a44522a/)**"
+        "**Built by [Nathan Goldberg](https://www.linkedin.com/in/nathanmauricegoldberg/)**"
     )
     st.caption("nathanmauricegoldberg@gmail.com")
 
@@ -161,43 +207,56 @@ if not _db_available:
 if page == "National Overview":
     st.header("National Overview")
 
-    # KPI cards
+    # KPI cards — use pre-aggregated table when no state filter is active
     try:
         sfilt = state_filter_sql()
         sparams = state_filter_params()
 
-        total = run_query(f"SELECT COUNT(*) as n FROM providers p WHERE 1=1{sfilt}", sparams)
-        total_facilities = int(total["n"].iloc[0]) if not total.empty else 0
+        if not selected_states and _has_summary_table("dashboard_kpi_stats"):
+            kpi = run_query("SELECT * FROM dashboard_kpi_stats")
+            if not kpi.empty:
+                r = kpi.iloc[0]
+                total_facilities = int(r["total_facilities"])
+                avg_rating = r["avg_overall_rating"]
+                total_fines = r["total_fines"]
+                pe_count = int(r["pe_count"])
+                reit_count = int(r["reit_count"])
+                def_count = int(r["total_deficiencies"])
+            else:
+                total_facilities = avg_rating = total_fines = pe_count = reit_count = def_count = 0
+        else:
+            total = run_query(f"SELECT COUNT(*) as n FROM providers p WHERE 1=1{sfilt}", sparams)
+            total_facilities = int(total["n"].iloc[0]) if not total.empty else 0
 
-        avg_r = run_query(
-            f"SELECT AVG(overall_rating) as avg_r FROM providers p WHERE overall_rating IS NOT NULL{sfilt}",
-            sparams,
-        )
-        avg_rating = avg_r["avg_r"].iloc[0] if not avg_r.empty else None
+            avg_r = run_query(
+                f"SELECT AVG(overall_rating) as avg_r FROM providers p WHERE overall_rating IS NOT NULL{sfilt}",
+                sparams,
+            )
+            avg_rating = avg_r["avg_r"].iloc[0] if not avg_r.empty else None
 
-        total_pen = run_query(
-            f"SELECT SUM(pen.fine_amount) as total FROM penalties pen JOIN providers p ON pen.federal_provider_number = p.federal_provider_number WHERE 1=1{sfilt}",
-            sparams,
-        )
-        total_fines = total_pen["total"].iloc[0] if not total_pen.empty else None
+            total_pen = run_query(
+                f"SELECT SUM(pen.fine_amount) as total FROM penalties pen JOIN providers p ON pen.federal_provider_number = p.federal_provider_number WHERE 1=1{sfilt}",
+                sparams,
+            )
+            total_fines = total_pen["total"].iloc[0] if not total_pen.empty else None
 
-        pe = run_query(
-            f"SELECT COUNT(*) as n FROM providers p WHERE owner_classification = 'private_equity'{sfilt}",
-            sparams,
-        )
-        pe_count = int(pe["n"].iloc[0]) if not pe.empty else 0
+            pe = run_query(
+                f"SELECT COUNT(*) as n FROM providers p WHERE owner_classification = 'private_equity'{sfilt}",
+                sparams,
+            )
+            pe_count = int(pe["n"].iloc[0]) if not pe.empty else 0
 
-        reit = run_query(
-            f"SELECT COUNT(*) as n FROM providers p WHERE owner_classification = 'reit'{sfilt}",
-            sparams,
-        )
-        reit_count = int(reit["n"].iloc[0]) if not reit.empty else 0
+            reit = run_query(
+                f"SELECT COUNT(*) as n FROM providers p WHERE owner_classification = 'reit'{sfilt}",
+                sparams,
+            )
+            reit_count = int(reit["n"].iloc[0]) if not reit.empty else 0
 
-        total_def = run_query(
-            f"SELECT COUNT(*) as n FROM health_deficiencies d JOIN providers p ON d.federal_provider_number = p.federal_provider_number WHERE 1=1{sfilt}",
-            sparams,
-        )
-        def_count = int(total_def["n"].iloc[0]) if not total_def.empty else 0
+            total_def = run_query(
+                f"SELECT COUNT(*) as n FROM health_deficiencies d JOIN providers p ON d.federal_provider_number = p.federal_provider_number WHERE 1=1{sfilt}",
+                sparams,
+            )
+            def_count = int(total_def["n"].iloc[0]) if not total_def.empty else 0
 
         c1, c2, c3, c4, c5, c6 = st.columns(6)
         c1.metric("Facilities", f"{total_facilities:,}")
@@ -355,17 +414,22 @@ elif page == "Ownership Analysis":
 
         # Classification comparison
         st.subheader("Quality by Ownership Type")
-        df = run_query(
-            f"""SELECT owner_classification,
-                       COUNT(*) as facilities,
-                       AVG(overall_rating) as avg_rating,
-                       AVG(quality_score) as avg_quality_score
-                FROM providers p
-                WHERE owner_classification IS NOT NULL{sfilt}
-                GROUP BY owner_classification
-                ORDER BY avg_rating""",
-            sparams,
-        )
+        if not selected_states and _has_summary_table("ownership_quality_summary"):
+            df = run_query(
+                "SELECT owner_classification, facilities, avg_rating, avg_quality_score FROM ownership_quality_summary ORDER BY avg_rating"
+            )
+        else:
+            df = run_query(
+                f"""SELECT owner_classification,
+                           COUNT(*) as facilities,
+                           AVG(overall_rating) as avg_rating,
+                           AVG(quality_score) as avg_quality_score
+                    FROM providers p
+                    WHERE owner_classification IS NOT NULL{sfilt}
+                    GROUP BY owner_classification
+                    ORDER BY avg_rating""",
+                sparams,
+            )
 
         if not df.empty:
             col1, col2 = st.columns(2)
@@ -705,19 +769,29 @@ elif page == "Staffing Analysis":
         # Staffing by ownership type
         st.subheader("Staffing Hours by Ownership Type")
         st.caption("Hours per resident per day. Research shows PE-owned facilities average lower staffing hours.")
-        df = run_query(f"""
-            SELECT owner_classification,
-                   AVG(reported_total_nurse_staffing_hours) as avg_total_hours,
-                   AVG(reported_rn_staffing_hours) as avg_rn_hours,
-                   AVG(reported_nurse_aide_staffing_hours) as avg_cna_hours,
-                   AVG(reported_lpn_staffing_hours) as avg_lpn_hours,
-                   COUNT(*) as facilities
-            FROM providers p
-            WHERE owner_classification IS NOT NULL
-              AND reported_total_nurse_staffing_hours IS NOT NULL{sfilt}
-            GROUP BY owner_classification
-            ORDER BY avg_total_hours DESC
-        """, sparams)
+        if not selected_states and _has_summary_table("ownership_quality_summary"):
+            df = run_query("""
+                SELECT owner_classification,
+                       avg_total_hours, avg_rn_hours, avg_cna_hours, avg_lpn_hours,
+                       facilities
+                FROM ownership_quality_summary
+                WHERE avg_total_hours IS NOT NULL
+                ORDER BY avg_total_hours DESC
+            """)
+        else:
+            df = run_query(f"""
+                SELECT owner_classification,
+                       AVG(reported_total_nurse_staffing_hours) as avg_total_hours,
+                       AVG(reported_rn_staffing_hours) as avg_rn_hours,
+                       AVG(reported_nurse_aide_staffing_hours) as avg_cna_hours,
+                       AVG(reported_lpn_staffing_hours) as avg_lpn_hours,
+                       COUNT(*) as facilities
+                FROM providers p
+                WHERE owner_classification IS NOT NULL
+                  AND reported_total_nurse_staffing_hours IS NOT NULL{sfilt}
+                GROUP BY owner_classification
+                ORDER BY avg_total_hours DESC
+            """, sparams)
 
         if not df.empty:
             col1, col2 = st.columns(2)
@@ -832,24 +906,31 @@ elif page == "Financial Analysis":
             # Revenue/Expense by ownership type (latest year per facility)
             st.subheader("Net Patient Revenue & Expenses by Ownership Type")
             st.caption("Each facility's most recent cost report. Revenue > $100K filter applied.")
-            df = run_query(f"""
-                SELECT p.owner_classification,
-                       COUNT(*) as facilities,
-                       AVG(cr.total_revenue) as avg_revenue,
-                       AVG(cr.total_expenses) as avg_expenses,
-                       AVG(cr.net_income) as avg_net_income,
-                       AVG(cr.cost_per_patient_day) as avg_cost_per_day
-                FROM cost_reports cr
-                INNER JOIN (
-                    SELECT federal_provider_number, MAX(fiscal_year) as max_fy
-                    FROM cost_reports GROUP BY federal_provider_number
-                ) latest ON cr.federal_provider_number = latest.federal_provider_number
-                       AND cr.fiscal_year = latest.max_fy
-                JOIN providers p ON cr.federal_provider_number = p.federal_provider_number
-                WHERE p.owner_classification IS NOT NULL AND cr.total_revenue > 100000{sfilt}
-                GROUP BY p.owner_classification
-                ORDER BY avg_revenue DESC
-            """, sparams)
+            if not selected_states and _has_summary_table("cost_report_by_ownership"):
+                df = run_query("""
+                    SELECT owner_classification, facilities, avg_revenue, avg_expenses,
+                           avg_net_income, avg_cost_per_day
+                    FROM cost_report_by_ownership ORDER BY avg_revenue DESC
+                """)
+            else:
+                df = run_query(f"""
+                    SELECT p.owner_classification,
+                           COUNT(*) as facilities,
+                           AVG(cr.total_revenue) as avg_revenue,
+                           AVG(cr.total_expenses) as avg_expenses,
+                           AVG(cr.net_income) as avg_net_income,
+                           AVG(cr.cost_per_patient_day) as avg_cost_per_day
+                    FROM cost_reports cr
+                    INNER JOIN (
+                        SELECT federal_provider_number, MAX(fiscal_year) as max_fy
+                        FROM cost_reports GROUP BY federal_provider_number
+                    ) latest ON cr.federal_provider_number = latest.federal_provider_number
+                           AND cr.fiscal_year = latest.max_fy
+                    JOIN providers p ON cr.federal_provider_number = p.federal_provider_number
+                    WHERE p.owner_classification IS NOT NULL AND cr.total_revenue > 100000{sfilt}
+                    GROUP BY p.owner_classification
+                    ORDER BY avg_revenue DESC
+                """, sparams)
 
             if not df.empty:
                 col1, col2 = st.columns(2)
@@ -1034,44 +1115,107 @@ elif page == "Financial Analysis":
             sec_df = run_query("""
                 SELECT reit_name, COUNT(*) as filing_count,
                        MIN(filing_date) as earliest_filing,
-                       MAX(filing_date) as latest_filing
+                       MAX(filing_date) as latest_filing,
+                       MAX(total_revenue_reported) as latest_revenue,
+                       MAX(snf_property_count) as snf_properties,
+                       MAX(total_lease_income) as lease_income,
+                       MAX(net_income_reported) as net_income
                 FROM sec_reit_filings
                 GROUP BY reit_name
                 ORDER BY filing_count DESC
             """)
 
             if not sec_df.empty:
-                c1, c2 = st.columns(2)
+                c1, c2, c3 = st.columns(3)
                 c1.metric("REITs Tracked", len(sec_df))
                 c2.metric("Total 10-K Filings", int(sec_df["filing_count"].sum()))
+                reits_with_financials = int((sec_df["latest_revenue"].notna() & (sec_df["latest_revenue"] > 0)).sum())
+                c3.metric("With Financial Data", reits_with_financials)
 
                 st.dataframe(sec_df, use_container_width=True, hide_index=True)
 
-                # Cross-reference: REIT facilities vs HCRIS data
-                reit_comparison = run_query("""
-                    SELECT p.owner_classification,
-                           COUNT(DISTINCT p.federal_provider_number) as facilities,
-                           AVG(cr.total_revenue) as avg_hcris_revenue,
-                           SUM(COALESCE(rpt_sum.total_rpt, 0)) as total_hcris_rpt
-                    FROM providers p
-                    LEFT JOIN cost_reports cr ON p.federal_provider_number = cr.federal_provider_number
+                # SEC vs HCRIS comparison — the key analytical value
+                st.subheader("SEC vs HCRIS: REIT Financial Comparison")
+                st.caption(
+                    "Compares what REITs report to the SEC in 10-K filings (total revenue, lease income) "
+                    "against what their nursing homes self-report in federal HCRIS cost reports. "
+                    "Large discrepancies may indicate underreporting at the facility level."
+                )
+
+                sec_hcris = run_query("""
+                    SELECT
+                        s.reit_name,
+                        s.snf_property_count as sec_snf_count,
+                        s.total_revenue_reported as sec_total_revenue,
+                        s.total_lease_income as sec_lease_income,
+                        s.net_income_reported as sec_net_income,
+                        reit_fac.facility_count as hcris_facility_count,
+                        reit_fac.avg_hcris_revenue,
+                        reit_fac.total_hcris_expenses,
+                        reit_fac.total_hcris_rpt
+                    FROM (
+                        SELECT reit_name, snf_property_count, total_revenue_reported,
+                               total_lease_income, net_income_reported
+                        FROM sec_reit_filings
+                        WHERE filing_date = (
+                            SELECT MAX(filing_date) FROM sec_reit_filings sf2
+                            WHERE sf2.reit_name = sec_reit_filings.reit_name
+                        )
+                        GROUP BY reit_name
+                    ) s
+
                     LEFT JOIN (
-                        SELECT federal_provider_number, MAX(fiscal_year) as max_fy
-                        FROM cost_reports GROUP BY federal_provider_number
-                    ) latest ON cr.federal_provider_number = latest.federal_provider_number
-                           AND cr.fiscal_year = latest.max_fy
-                    LEFT JOIN (
-                        SELECT federal_provider_number, SUM(amount) as total_rpt
-                        FROM related_party_transactions WHERE amount IS NOT NULL
-                        GROUP BY federal_provider_number
-                    ) rpt_sum ON p.federal_provider_number = rpt_sum.federal_provider_number
-                    WHERE p.owner_classification = 'reit'
-                    GROUP BY p.owner_classification
+                        SELECT
+                            o.normalized_owner_name as reit_name,
+                            COUNT(DISTINCT p.federal_provider_number) as facility_count,
+                            AVG(cr.total_revenue) as avg_hcris_revenue,
+                            SUM(cr.total_expenses) as total_hcris_expenses,
+                            SUM(COALESCE(rpt_sum.total_rpt, 0)) as total_hcris_rpt
+                        FROM ownership o
+                        JOIN providers p ON o.federal_provider_number = p.federal_provider_number
+                        LEFT JOIN cost_reports cr ON p.federal_provider_number = cr.federal_provider_number
+                        LEFT JOIN (
+                            SELECT federal_provider_number, MAX(fiscal_year) as max_fy
+                            FROM cost_reports GROUP BY federal_provider_number
+                        ) latest ON cr.federal_provider_number = latest.federal_provider_number
+                                 AND cr.fiscal_year = latest.max_fy
+                        LEFT JOIN (
+                            SELECT federal_provider_number, SUM(amount) as total_rpt
+                            FROM related_party_transactions WHERE amount IS NOT NULL
+                            GROUP BY federal_provider_number
+                        ) rpt_sum ON p.federal_provider_number = rpt_sum.federal_provider_number
+                        WHERE o.owner_classification = 'reit'
+                        GROUP BY o.normalized_owner_name
+                    ) reit_fac ON UPPER(reit_fac.reit_name) LIKE '%' || UPPER(SUBSTR(s.reit_name, 1, 10)) || '%'
+                    WHERE s.total_revenue_reported IS NOT NULL
+                    ORDER BY s.sec_total_revenue DESC
                 """)
 
-                if not reit_comparison.empty:
-                    st.subheader("REIT-Owned Facilities — HCRIS Financial Summary")
-                    st.dataframe(reit_comparison, use_container_width=True, hide_index=True)
+                if not sec_hcris.empty and sec_hcris["sec_total_revenue"].notna().any():
+                    st.dataframe(sec_hcris, use_container_width=True, hide_index=True)
+                else:
+                    # Fallback: show REIT-owned facility HCRIS summary
+                    reit_hcris = run_query("""
+                        SELECT
+                            COUNT(DISTINCT p.federal_provider_number) as reit_facilities,
+                            AVG(cr.total_revenue) as avg_hcris_revenue,
+                            SUM(COALESCE(rpt_sum.total_rpt, 0)) as total_hcris_rpt
+                        FROM providers p
+                        LEFT JOIN cost_reports cr ON p.federal_provider_number = cr.federal_provider_number
+                        LEFT JOIN (
+                            SELECT federal_provider_number, MAX(fiscal_year) as max_fy
+                            FROM cost_reports GROUP BY federal_provider_number
+                        ) latest ON cr.federal_provider_number = latest.federal_provider_number
+                               AND cr.fiscal_year = latest.max_fy
+                        LEFT JOIN (
+                            SELECT federal_provider_number, SUM(amount) as total_rpt
+                            FROM related_party_transactions WHERE amount IS NOT NULL
+                            GROUP BY federal_provider_number
+                        ) rpt_sum ON p.federal_provider_number = rpt_sum.federal_provider_number
+                        WHERE p.owner_classification = 'reit'
+                    """)
+                    if not reit_hcris.empty:
+                        st.dataframe(reit_hcris, use_container_width=True, hide_index=True)
             else:
                 st.info("Run `python -m src.cli download-sec` to fetch REIT filing metadata from SEC EDGAR.")
 
@@ -1266,16 +1410,16 @@ elif page == "California Financial Detail":
                 c1, c2, c3, c4 = st.columns(4)
                 c1.metric("CA Facilities", f"{int(kpis['facilities'].iloc[0]):,}")
                 c2.metric("Avg Revenue", format_currency(kpis["avg_revenue"].iloc[0]))
-                c3.metric("Avg Mgmt Fees", format_currency(kpis["avg_mgmt_fee"].iloc[0]))
+                c3.metric("Avg Admin Expenses", format_currency(kpis["avg_mgmt_fee"].iloc[0]))
                 c4.metric("Avg RPT Expenses", format_currency(kpis["avg_rpt"].iloc[0]))
 
             st.divider()
 
             # Management fee comparison: HCAI vs HCRIS
-            st.subheader("Management Fee Comparison: HCAI vs Federal HCRIS")
+            st.subheader("Financial Comparison: CA HCAI vs Federal HCRIS")
             st.caption(
-                "CA facilities report management fees to both state (HCAI) and federal (HCRIS). "
-                "Discrepancies may indicate selective reporting."
+                "CA facilities report financials to both state (HCAI — admin expenses, rent, related-party payables) "
+                "and federal (HCRIS). Discrepancies between the two may indicate selective reporting."
             )
 
             comparison = run_query("""
@@ -1598,32 +1742,46 @@ elif page == "Geographic Map":
 
         metric = st.selectbox("Color by", ["Average Rating", "Facility Count", "Total Fines", "PE-Owned %"])
 
+        use_summary = not selected_states and _has_summary_table("state_summary")
+
         if metric == "Average Rating":
-            df = run_query(
-                f"SELECT provider_state as state, AVG(overall_rating) as value FROM providers p WHERE overall_rating IS NOT NULL{sfilt} GROUP BY provider_state",
-                sparams,
-            )
+            if use_summary:
+                df = run_query("SELECT provider_state as state, avg_rating as value FROM state_summary")
+            else:
+                df = run_query(
+                    f"SELECT provider_state as state, AVG(overall_rating) as value FROM providers p WHERE overall_rating IS NOT NULL{sfilt} GROUP BY provider_state",
+                    sparams,
+                )
             color_label = "Avg Rating"
         elif metric == "Facility Count":
-            df = run_query(
-                f"SELECT provider_state as state, COUNT(*) as value FROM providers p WHERE 1=1{sfilt} GROUP BY provider_state",
-                sparams,
-            )
+            if use_summary:
+                df = run_query("SELECT provider_state as state, facility_count as value FROM state_summary")
+            else:
+                df = run_query(
+                    f"SELECT provider_state as state, COUNT(*) as value FROM providers p WHERE 1=1{sfilt} GROUP BY provider_state",
+                    sparams,
+                )
             color_label = "Facilities"
         elif metric == "Total Fines":
-            df = run_query(
-                f"SELECT p.provider_state as state, SUM(pen.fine_amount) as value FROM penalties pen JOIN providers p ON pen.federal_provider_number = p.federal_provider_number WHERE 1=1{sfilt} GROUP BY p.provider_state",
-                sparams,
-            )
+            if not selected_states and _has_summary_table("penalty_state_summary"):
+                df = run_query("SELECT state, total_fines as value FROM penalty_state_summary")
+            else:
+                df = run_query(
+                    f"SELECT p.provider_state as state, SUM(pen.fine_amount) as value FROM penalties pen JOIN providers p ON pen.federal_provider_number = p.federal_provider_number WHERE 1=1{sfilt} GROUP BY p.provider_state",
+                    sparams,
+                )
             color_label = "Total Fines ($)"
         else:
-            df = run_query(f"""
-                SELECT provider_state as state,
-                       100.0 * SUM(CASE WHEN owner_classification = 'private_equity' THEN 1 ELSE 0 END) / COUNT(*) as value
-                FROM providers p
-                WHERE provider_state IS NOT NULL{sfilt}
-                GROUP BY provider_state
-            """, sparams)
+            if use_summary:
+                df = run_query("SELECT provider_state as state, 100.0 * pe_count / total_count as value FROM state_summary WHERE total_count > 0")
+            else:
+                df = run_query(f"""
+                    SELECT provider_state as state,
+                           100.0 * SUM(CASE WHEN owner_classification = 'private_equity' THEN 1 ELSE 0 END) / COUNT(*) as value
+                    FROM providers p
+                    WHERE provider_state IS NOT NULL{sfilt}
+                    GROUP BY provider_state
+                """, sparams)
             color_label = "PE-Owned %"
 
         if not df.empty:
@@ -1830,11 +1988,14 @@ elif page == "Facility Deep Dive":
                     st.subheader("Value-Based Purchasing (VBP)")
                     try:
                         vbp = run_query(
-                            """SELECT program_year, snhrd_rate, performance_score,
-                                      achievement_score, improvement_score,
-                                      incentive_multiplier, performance_rate
-                               FROM snf_vbp WHERE federal_provider_number = ?
-                               ORDER BY program_year DESC""",
+                            """SELECT program_ranking,
+                                      readmission_baseline_rate, readmission_performance_rate,
+                                      readmission_achievement_score, readmission_improvement_score,
+                                      hai_baseline_rate, hai_performance_rate,
+                                      turnover_baseline_rate, turnover_performance_rate,
+                                      staffing_baseline_rate, staffing_performance_rate,
+                                      performance_score, incentive_multiplier
+                               FROM snf_vbp WHERE federal_provider_number = ?""",
                             (selected,),
                         )
                         if not vbp.empty:
@@ -1842,7 +2003,7 @@ elif page == "Facility Deep Dive":
                             c1, c2, c3 = st.columns(3)
                             c1.metric("Performance Score", f"{r['performance_score']:.1f}" if pd.notna(r.get('performance_score')) else "—")
                             c2.metric("Incentive Multiplier", f"{r['incentive_multiplier']:.3f}" if pd.notna(r.get('incentive_multiplier')) else "—")
-                            c3.metric("SNHRD Rate", f"{r['snhrd_rate']:.1f}%" if pd.notna(r.get('snhrd_rate')) else "—")
+                            c3.metric("Program Ranking", f"{int(r['program_ranking']):,}" if pd.notna(r.get('program_ranking')) else "—")
                             st.dataframe(vbp, use_container_width=True, hide_index=True)
                         else:
                             st.info("No VBP data.")
