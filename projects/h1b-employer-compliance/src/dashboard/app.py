@@ -633,48 +633,44 @@ def _financial_tab():
             SELECT ep.employer_name, ep.ticker,
                    ep.total_lcas,
                    ROUND(ep.revenue / 1e9, 2) as revenue_b,
-                   ROUND(ep.avg_wage, 0) as avg_wage,
-                   ROUND(ep.h1b_per_1000_employees, 2) as h1b_per_1000
+                   ROUND(ep.avg_wage, 0) as avg_wage
             FROM employer_profiles ep
             WHERE ep.is_public = 1 AND ep.revenue IS NOT NULL
                   AND ep.total_lcas >= 10
-                  AND ep.h1b_per_1000_employees IS NOT NULL
             ORDER BY ep.revenue DESC
             LIMIT 100
         """)
         if not df.empty:
-            df["h1b_per_1000"] = pd.to_numeric(df["h1b_per_1000"], errors="coerce").fillna(0.1)
             fig = px.scatter(df, x="revenue_b", y="total_lcas",
                              hover_name="employer_name",
-                             size="h1b_per_1000",
                              title="Revenue vs H-1B Filing Volume",
                              labels={"revenue_b": "Revenue ($B)",
-                                     "total_lcas": "LCA Applications",
-                                     "h1b_per_1000": "H-1B per 1K Employees"})
+                                     "total_lcas": "LCA Applications"})
             fig.update_layout(height=500)
             st.plotly_chart(fig, use_container_width=True)
 
     col3, col4 = st.columns(2)
 
     with col3:
-        # H-1B intensity (per 1000 employees)
+        # Revenue per H-1B filing (cost efficiency)
         df = query("""
             SELECT ep.employer_name, ep.ticker,
-                   ROUND(ep.h1b_per_1000_employees, 2) as h1b_per_1000,
-                   ep.employees, ep.total_lcas
+                   ROUND(ep.revenue / ep.total_lcas / 1e6, 2) as rev_per_h1b_m,
+                   ep.total_lcas,
+                   ROUND(ep.revenue / 1e9, 2) as revenue_b
             FROM employer_profiles ep
             WHERE ep.is_public = 1
-                  AND ep.h1b_per_1000_employees IS NOT NULL
-                  AND ep.employees >= 1000
-            ORDER BY ep.h1b_per_1000_employees DESC
+                  AND ep.revenue IS NOT NULL
+                  AND ep.total_lcas >= 50
+            ORDER BY rev_per_h1b_m DESC
             LIMIT 20
         """)
         if not df.empty:
-            fig = px.bar(df, x="h1b_per_1000", y="employer_name", orientation="h",
-                         title="H-1B Intensity: Applications per 1,000 Employees",
-                         labels={"h1b_per_1000": "H-1B per 1K Employees",
+            fig = px.bar(df, x="rev_per_h1b_m", y="employer_name", orientation="h",
+                         title="Revenue per H-1B Filing ($M)",
+                         labels={"rev_per_h1b_m": "Revenue per H-1B ($M)",
                                  "employer_name": ""},
-                         hover_data=["ticker", "employees", "total_lcas"])
+                         hover_data=["ticker", "revenue_b", "total_lcas"])
             fig.update_layout(yaxis=dict(autorange="reversed"), height=500)
             st.plotly_chart(fig, use_container_width=True)
 
