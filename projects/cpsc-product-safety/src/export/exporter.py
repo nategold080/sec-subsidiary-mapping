@@ -24,6 +24,28 @@ def export_all(conn: sqlite3.Connection) -> dict:
     counts["profiles_csv"] = _export_table_csv(conn, "manufacturer_profiles", "manufacturer_profiles.csv")
     counts["cross_links_csv"] = _export_table_csv(conn, "cross_links", "cross_links.csv")
 
+    counts["product_codes_csv"] = _export_table_csv(conn, "neiss_product_codes", "neiss_product_codes.csv")
+
+    # FDA exports (only if tables have data)
+    try:
+        fda_count = conn.execute("SELECT COUNT(*) FROM fda_adverse_events").fetchone()[0]
+        if fda_count > 0:
+            counts["fda_events_csv"] = _export_table_csv(conn, "fda_adverse_events", "fda_adverse_events.csv")
+        fda_recall_count = conn.execute("SELECT COUNT(*) FROM fda_device_recalls").fetchone()[0]
+        if fda_recall_count > 0:
+            counts["fda_recalls_csv"] = _export_table_csv(conn, "fda_device_recalls", "fda_device_recalls.csv")
+    except Exception:
+        pass
+
+    # Hazard validation exports
+    try:
+        hv_count = conn.execute("SELECT COUNT(*) FROM hazard_validation_results").fetchone()[0]
+        if hv_count > 0:
+            counts["hazard_validation_csv"] = _export_table_csv(conn, "hazard_validation_results", "hazard_validation.csv")
+            counts["hazard_map_csv"] = _export_table_csv(conn, "hazard_diagnosis_map", "hazard_diagnosis_map.csv")
+    except Exception:
+        pass
+
     counts["profiles_json"] = _export_profiles_json(conn)
     counts["summary_md"] = _export_summary_md(conn)
     counts["top_manufacturers_csv"] = _export_top_manufacturers(conn)
@@ -146,6 +168,21 @@ def _export_summary_md(conn: sqlite3.Connection) -> int:
     except Exception:
         high_risk = 0
 
+    # Cross-agency stats
+    try:
+        fda_events = conn.execute("SELECT COUNT(*) FROM fda_adverse_events").fetchone()[0]
+        fda_recalls = conn.execute("SELECT COUNT(*) FROM fda_device_recalls").fetchone()[0]
+    except Exception:
+        fda_events = 0
+        fda_recalls = 0
+
+    try:
+        hazard_validations = conn.execute("SELECT COUNT(*) FROM hazard_validation_results").fetchone()[0]
+        confirmed_validations = conn.execute("SELECT COUNT(*) FROM hazard_validation_results WHERE validation_status = 'confirmed'").fetchone()[0]
+    except Exception:
+        hazard_validations = 0
+        confirmed_validations = 0
+
     # Top 20 manufacturers by recalls
     top_mfrs = conn.execute("""
         SELECT manufacturer_name, total_recalls, total_units_recalled,
@@ -175,6 +212,9 @@ def _export_summary_md(conn: sqlite3.Connection) -> int:
         f.write(f"| Manufacturer Profiles | {stats.get('manufacturer_profiles', 0):,} |\n")
         f.write(f"| Cross-Links | {stats.get('cross_links', 0):,} |\n")
         f.write(f"| High/Critical Risk | {high_risk:,} |\n")
+        f.write(f"| FDA Adverse Events | {fda_events:,} |\n")
+        f.write(f"| FDA Device Recalls | {fda_recalls:,} |\n")
+        f.write(f"| Hazard Validations | {hazard_validations:,} ({confirmed_validations} confirmed) |\n")
         f.write(f"| Date Range | {date_str} |\n")
 
         f.write("\n## Top 20 Manufacturers by Recall Count\n\n")

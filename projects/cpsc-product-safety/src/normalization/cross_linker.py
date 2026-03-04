@@ -20,6 +20,7 @@ def build_cross_links(conn: sqlite3.Connection) -> int:
     total += _link_recalls_to_incidents(conn)
     total += _link_penalties_to_incidents(conn)
     total += _link_violations_to_recalls(conn)
+    total += _link_fda_to_cpsc(conn)
 
     conn.commit()
     logger.info(f"Total cross-links created: {total:,}")
@@ -194,6 +195,102 @@ def _link_violations_to_recalls(conn: sqlite3.Connection) -> int:
     return len(links)
 
 
+def _link_fda_to_cpsc(conn: sqlite3.Connection) -> int:
+    """Link FDA adverse events and recalls to CPSC data via manufacturer name."""
+    links = []
+
+    # Check if FDA tables exist and have data
+    try:
+        fda_event_count = conn.execute("SELECT COUNT(*) FROM fda_adverse_events").fetchone()[0]
+        fda_recall_count = conn.execute("SELECT COUNT(*) FROM fda_device_recalls").fetchone()[0]
+    except Exception:
+        logger.info("FDA tables not available, skipping FDA cross-linking")
+        return 0
+
+    if fda_event_count == 0 and fda_recall_count == 0:
+        logger.info("No FDA data to cross-link")
+        return 0
+
+    # Build CPSC manufacturer index
+    cpsc_mfrs = set()
+    for row in conn.execute(
+        "SELECT DISTINCT normalized_manufacturer FROM recalls WHERE normalized_manufacturer != ''"
+    ):
+        cpsc_mfrs.add(row[0])
+    for row in conn.execute(
+        "SELECT DISTINCT normalized_manufacturer FROM incidents WHERE normalized_manufacturer != ''"
+    ):
+        cpsc_mfrs.add(row[0])
+
+    # Clear old FDA links
+    conn.execute("DELETE FROM cpsc_fda_manufacturer_links")
+
+    # Link FDA adverse events to CPSC via exact normalized name match
+    fda_event_mfrs = {}
+    for row in conn.execute(
+        "SELECT event_id, manufacturer_normalized FROM fda_adverse_events WHERE manufacturer_normalized != ''"
+    ):
+        event_id, norm = row
+        if norm not in fda_event_mfrs:
+            fda_event_mfrs[norm] = []
+        fda_event_mfrs[norm].append(event_id)
+
+    # Find matching manufacturers
+    matched_mfrs = set()
+    for fda_norm in fda_event_mfrs:
+        if fda_norm in cpsc_mfrs:
+            matched_mfrs.add(fda_norm)
+            for event_id in fda_event_mfrs[fda_norm][:100]:  # Cap per manufacturer
+                links.append({
+                    "source_table": "fda_adverse_events",
+                    "source_id": event_id,
+                    "target_table": "recalls",
+                    "target_id": fda_norm,
+                    "link_type": "cross_agency_manufacturer",
+                    "confidence": 0.85,
+                })
+
+    # Link FDA recalls to CPSC
+    for row in conn.execute(
+        "SELECT recall_id, manufacturer_normalized FROM fda_device_recalls WHERE manufacturer_normalized != ''"
+    ):
+        recall_id, norm = row
+        if norm in cpsc_mfrs:
+            matched_mfrs.add(norm)
+            links.append({
+                "source_table": "fda_device_recalls",
+                "source_id": recall_id,
+                "target_table": "recalls",
+                "target_id": norm,
+                "link_type": "cross_agency_manufacturer",
+                "confidence": 0.85,
+            })
+
+    # Insert cross-agency manufacturer links
+    mfr_links = [
+        {"cpsc_manufacturer": m, "fda_manufacturer": m,
+         "link_method": "exact", "confidence": 0.90}
+        for m in matched_mfrs
+    ]
+    if mfr_links:
+        conn.executemany("""
+            INSERT OR IGNORE INTO cpsc_fda_manufacturer_links
+            (cpsc_manufacturer, fda_manufacturer, link_method, confidence)
+            VALUES (:cpsc_manufacturer, :fda_manufacturer, :link_method, :confidence)
+        """, mfr_links)
+
+    if links:
+        conn.executemany("""
+            INSERT OR IGNORE INTO cross_links
+            (source_table, source_id, target_table, target_id, link_type, confidence)
+            VALUES (:source_table, :source_id, :target_table, :target_id, :link_type, :confidence)
+        """, links)
+        conn.commit()
+
+    logger.info(f"FDA ↔ CPSC: {len(links)} links, {len(matched_mfrs)} matched manufacturers")
+    return len(links)
+
+
 def build_manufacturer_profiles(conn: sqlite3.Connection) -> int:
     """Build unified manufacturer profiles from all data sources."""
     conn.execute("DELETE FROM manufacturer_profiles")
@@ -354,6 +451,28 @@ def _build_single_profile(conn: sqlite3.Connection, norm_name: str, orig_name: s
         dates.append(row[4])
     if total_violations > 0:
         sources.append("import_violations")
+
+    # FDA adverse events
+    fda_events = 0
+    fda_recalls = 0
+    try:
+        row = conn.execute("""
+            SELECT COUNT(*) FROM fda_adverse_events
+            WHERE manufacturer_normalized = ?
+        """, (norm_name,)).fetchone()
+        fda_events = row[0] or 0
+        if fda_events > 0:
+            sources.append("fda_events")
+
+        row = conn.execute("""
+            SELECT COUNT(*) FROM fda_device_recalls
+            WHERE manufacturer_normalized = ?
+        """, (norm_name,)).fetchone()
+        fda_recalls = row[0] or 0
+        if fda_recalls > 0:
+            sources.append("fda_recalls")
+    except Exception:
+        pass  # FDA tables may not exist yet
 
     # Skip manufacturers with no data in any source
     if not sources:

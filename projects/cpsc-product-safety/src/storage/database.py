@@ -207,11 +207,85 @@ CREATE TABLE IF NOT EXISTS cross_links (
     UNIQUE(source_table, source_id, target_table, target_id, link_type)
 );
 
--- NEISS product code reference
+-- FDA adverse events (consumer product subset from OpenFDA)
+CREATE TABLE IF NOT EXISTS fda_adverse_events (
+    event_id TEXT PRIMARY KEY,
+    report_date TEXT,
+    product_name TEXT,
+    product_type TEXT,
+    manufacturer_name TEXT,
+    manufacturer_normalized TEXT,
+    event_type TEXT,
+    patient_outcome TEXT,
+    description TEXT,
+    source TEXT,
+    quality_score REAL DEFAULT 0.0,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
+
+-- FDA device recalls
+CREATE TABLE IF NOT EXISTS fda_device_recalls (
+    recall_id TEXT PRIMARY KEY,
+    product_description TEXT,
+    reason_for_recall TEXT,
+    manufacturer_name TEXT,
+    manufacturer_normalized TEXT,
+    recall_class TEXT,
+    recall_status TEXT,
+    event_date TEXT,
+    quality_score REAL DEFAULT 0.0,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Cross-agency manufacturer links (CPSC ↔ FDA)
+CREATE TABLE IF NOT EXISTS cpsc_fda_manufacturer_links (
+    cpsc_manufacturer TEXT NOT NULL,
+    fda_manufacturer TEXT NOT NULL,
+    link_method TEXT,
+    confidence REAL DEFAULT 0.9,
+    PRIMARY KEY (cpsc_manufacturer, fda_manufacturer)
+);
+
+-- Hazard-to-diagnosis mapping reference table
+CREATE TABLE IF NOT EXISTS hazard_diagnosis_map (
+    hazard_type TEXT NOT NULL,
+    neiss_diagnosis_code INTEGER NOT NULL,
+    diagnosis_name TEXT,
+    PRIMARY KEY (hazard_type, neiss_diagnosis_code)
+);
+
+-- Hazard validation results per manufacturer
+CREATE TABLE IF NOT EXISTS hazard_validation_results (
+    manufacturer_normalized TEXT NOT NULL,
+    hazard_type TEXT NOT NULL,
+    total_recalls_with_hazard INTEGER DEFAULT 0,
+    total_neiss_injuries INTEGER DEFAULT 0,
+    matching_diagnosis_count INTEGER DEFAULT 0,
+    unexpected_diagnosis_count INTEGER DEFAULT 0,
+    match_rate REAL DEFAULT 0.0,
+    validation_status TEXT,
+    PRIMARY KEY (manufacturer_normalized, hazard_type)
+);
+
+CREATE INDEX IF NOT EXISTS idx_validation_mfr ON hazard_validation_results(manufacturer_normalized);
+CREATE INDEX IF NOT EXISTS idx_validation_status ON hazard_validation_results(validation_status);
+
+CREATE INDEX IF NOT EXISTS idx_fda_events_mfr ON fda_adverse_events(manufacturer_normalized);
+CREATE INDEX IF NOT EXISTS idx_fda_events_type ON fda_adverse_events(product_type);
+CREATE INDEX IF NOT EXISTS idx_fda_events_date ON fda_adverse_events(report_date);
+CREATE INDEX IF NOT EXISTS idx_fda_events_event_type ON fda_adverse_events(event_type);
+CREATE INDEX IF NOT EXISTS idx_fda_recalls_mfr ON fda_device_recalls(manufacturer_normalized);
+CREATE INDEX IF NOT EXISTS idx_fda_recalls_class ON fda_device_recalls(recall_class);
+CREATE INDEX IF NOT EXISTS idx_fda_recalls_date ON fda_device_recalls(event_date);
+
+-- NEISS product code reference (expanded for enrichment)
 CREATE TABLE IF NOT EXISTS neiss_product_codes (
     product_code INTEGER PRIMARY KEY,
     product_name TEXT NOT NULL,
-    category TEXT
+    category TEXT,
+    is_deleted INTEGER DEFAULT 0,
+    is_child_related INTEGER DEFAULT 0,
+    is_outdoor INTEGER DEFAULT 0
 );
 
 -- Indexes
@@ -576,16 +650,151 @@ def insert_cross_links_batch(records: list, db_path=None, conn=None):
             c.close()
 
 
+def upsert_fda_events_batch(records: list, db_path=None, conn=None):
+    """Batch insert/update FDA adverse event records."""
+    c, owned = get_connection(db_path, conn)
+    try:
+        c.executemany("""
+            INSERT INTO fda_adverse_events (
+                event_id, report_date, product_name, product_type,
+                manufacturer_name, manufacturer_normalized,
+                event_type, patient_outcome, description, source,
+                quality_score
+            ) VALUES (
+                :event_id, :report_date, :product_name, :product_type,
+                :manufacturer_name, :manufacturer_normalized,
+                :event_type, :patient_outcome, :description, :source,
+                :quality_score
+            )
+            ON CONFLICT(event_id) DO UPDATE SET
+                product_name = excluded.product_name,
+                manufacturer_normalized = excluded.manufacturer_normalized,
+                quality_score = excluded.quality_score
+        """, records)
+        if owned:
+            c.commit()
+    finally:
+        if owned:
+            c.close()
+
+
+def upsert_fda_recalls_batch(records: list, db_path=None, conn=None):
+    """Batch insert/update FDA device recall records."""
+    c, owned = get_connection(db_path, conn)
+    try:
+        c.executemany("""
+            INSERT INTO fda_device_recalls (
+                recall_id, product_description, reason_for_recall,
+                manufacturer_name, manufacturer_normalized,
+                recall_class, recall_status, event_date, quality_score
+            ) VALUES (
+                :recall_id, :product_description, :reason_for_recall,
+                :manufacturer_name, :manufacturer_normalized,
+                :recall_class, :recall_status, :event_date, :quality_score
+            )
+            ON CONFLICT(recall_id) DO UPDATE SET
+                product_description = excluded.product_description,
+                manufacturer_normalized = excluded.manufacturer_normalized,
+                quality_score = excluded.quality_score
+        """, records)
+        if owned:
+            c.commit()
+    finally:
+        if owned:
+            c.close()
+
+
+def insert_cpsc_fda_links_batch(records: list, db_path=None, conn=None):
+    """Batch insert CPSC ↔ FDA manufacturer links."""
+    c, owned = get_connection(db_path, conn)
+    try:
+        c.executemany("""
+            INSERT OR IGNORE INTO cpsc_fda_manufacturer_links
+            (cpsc_manufacturer, fda_manufacturer, link_method, confidence)
+            VALUES (:cpsc_manufacturer, :fda_manufacturer, :link_method, :confidence)
+        """, records)
+        if owned:
+            c.commit()
+    finally:
+        if owned:
+            c.close()
+
+
 def insert_product_codes_batch(records: list, db_path=None, conn=None):
     """Batch insert NEISS product code reference data."""
     c, owned = get_connection(db_path, conn)
     try:
         c.executemany("""
-            INSERT OR REPLACE INTO neiss_product_codes (product_code, product_name, category)
-            VALUES (:product_code, :product_name, :category)
+            INSERT OR REPLACE INTO neiss_product_codes
+            (product_code, product_name, category, is_deleted, is_child_related, is_outdoor)
+            VALUES (:product_code, :product_name, :category,
+                    :is_deleted, :is_child_related, :is_outdoor)
         """, records)
         if owned:
             c.commit()
+    finally:
+        if owned:
+            c.close()
+
+
+def load_product_codes_from_yaml(yaml_path: str, db_path=None, conn=None) -> int:
+    """Load NEISS product codes from YAML config into the database. Returns count loaded."""
+    import yaml
+
+    with open(yaml_path) as f:
+        data = yaml.safe_load(f)
+
+    codes = data.get("neiss_product_codes", {})
+    records = []
+    for code, info in codes.items():
+        records.append({
+            "product_code": int(code),
+            "product_name": info["product_name"],
+            "category": info.get("category", ""),
+            "is_deleted": 1 if info.get("is_deleted", False) else 0,
+            "is_child_related": 1 if info.get("is_child_related", False) else 0,
+            "is_outdoor": 1 if info.get("is_outdoor", False) else 0,
+        })
+
+    insert_product_codes_batch(records, db_path=db_path, conn=conn)
+    return len(records)
+
+
+def update_neiss_product_names(db_path=None, conn=None) -> int:
+    """Update NEISS injury records with resolved product names from product code table.
+    Returns count of records updated."""
+    c, owned = get_connection(db_path, conn)
+    try:
+        result = c.execute("""
+            UPDATE neiss_injuries
+            SET product_1_name = (
+                SELECT product_name FROM neiss_product_codes
+                WHERE neiss_product_codes.product_code = neiss_injuries.product_1
+            )
+            WHERE product_1 IS NOT NULL
+              AND EXISTS (
+                SELECT 1 FROM neiss_product_codes
+                WHERE neiss_product_codes.product_code = neiss_injuries.product_1
+              )
+        """)
+        updated = result.rowcount
+        if owned:
+            c.commit()
+        return updated
+    finally:
+        if owned:
+            c.close()
+
+
+def get_product_code_name(code: int, db_path=None, conn=None) -> str:
+    """Look up a NEISS product code name. Returns empty string if not found."""
+    c, owned = get_connection(db_path, conn)
+    try:
+        row = c.execute(
+            "SELECT product_name FROM neiss_product_codes WHERE product_code = ?",
+            (code,)
+        ).fetchone()
+        return row[0] if row else ""
     finally:
         if owned:
             c.close()
@@ -598,7 +807,8 @@ def get_stats(db_path=None, conn=None):
         stats = {}
         for table in ["recalls", "incidents", "neiss_injuries", "penalties",
                        "import_violations", "manufacturer_profiles", "cross_links",
-                       "neiss_product_codes"]:
+                       "neiss_product_codes", "fda_adverse_events",
+                       "fda_device_recalls", "cpsc_fda_manufacturer_links"]:
             try:
                 row = c.execute(f"SELECT COUNT(*) FROM {table}").fetchone()
                 stats[table] = row[0]
@@ -641,6 +851,20 @@ def get_stats(db_path=None, conn=None):
             stats["neiss_national_estimate"] = row[0] or 0.0
         except sqlite3.OperationalError:
             stats["neiss_national_estimate"] = 0.0
+
+        try:
+            row = c.execute(
+                "SELECT COUNT(*) FROM neiss_injuries WHERE product_1_name IS NOT NULL AND product_1_name != ''"
+            ).fetchone()
+            stats["neiss_with_product_name"] = row[0]
+        except sqlite3.OperationalError:
+            stats["neiss_with_product_name"] = 0
+
+        try:
+            row = c.execute("SELECT COUNT(DISTINCT category) FROM neiss_product_codes WHERE category != ''").fetchone()
+            stats["product_categories"] = row[0]
+        except sqlite3.OperationalError:
+            stats["product_categories"] = 0
 
         return stats
     finally:

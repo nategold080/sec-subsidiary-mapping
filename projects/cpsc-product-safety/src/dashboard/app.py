@@ -30,27 +30,34 @@ def main():
     st.title("CPSC Product Safety Tracker")
     st.caption("Cross-linked database of consumer product recalls, incidents, injuries, penalties, and import violations")
 
-    tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs([
-        "Overview", "Manufacturer Search", "Top Manufacturers",
-        "Risk Analysis", "Recalls", "NEISS Injuries",
-        "Import Violations", "Data Explorer"
+    tabs = st.tabs([
+        "Overview", "Product Injury Analysis", "Cross-Agency Analysis",
+        "Hazard Validation", "Manufacturer Search", "Top Manufacturers",
+        "Risk Analysis", "Recalls", "NEISS Injuries", "Import Violations",
+        "Data Explorer"
     ])
 
-    with tab1:
+    with tabs[0]:
         render_overview()
-    with tab2:
+    with tabs[1]:
+        render_product_injury_analysis()
+    with tabs[2]:
+        render_cross_agency()
+    with tabs[3]:
+        render_hazard_validation()
+    with tabs[4]:
         render_search()
-    with tab3:
+    with tabs[5]:
         render_top_manufacturers()
-    with tab4:
+    with tabs[6]:
         render_risk_analysis()
-    with tab5:
+    with tabs[7]:
         render_recalls()
-    with tab6:
+    with tabs[8]:
         render_neiss()
-    with tab7:
+    with tabs[9]:
         render_violations()
-    with tab8:
+    with tabs[10]:
         render_data_explorer()
 
     st.markdown("---")
@@ -79,19 +86,24 @@ def render_overview():
             (SELECT COUNT(*) FROM manufacturer_profiles WHERE risk_tier IN ('HIGH','CRITICAL')) as high_risk
     """)
 
+    if stats.empty:
+        st.warning("No data available.")
+        return
+
+    row = stats.iloc[0]
     c1, c2, c3, c4, c5 = st.columns(5)
-    c1.metric("Recall Campaigns", f"{stats['recalls'].iloc[0]:,}")
-    c2.metric("Incident Reports", f"{stats['incidents'].iloc[0]:,}")
-    c3.metric("NEISS ER Injuries", f"{stats['neiss'].iloc[0]:,}")
-    c4.metric("Penalties", f"{stats['penalties'].iloc[0]:,}")
-    c5.metric("Import Violations", f"{stats['violations'].iloc[0]:,}")
+    c1.metric("Recall Campaigns", f"{row['recalls']:,}")
+    c2.metric("Incident Reports", f"{row['incidents']:,}")
+    c3.metric("NEISS ER Injuries", f"{row['neiss']:,}")
+    c4.metric("Penalties", f"{row['penalties']:,}")
+    c5.metric("Import Violations", f"{row['violations']:,}")
 
     c6, c7, c8, c9, c10 = st.columns(5)
-    c6.metric("Manufacturer Profiles", f"{stats['profiles'].iloc[0]:,}")
-    c7.metric("Cross-Links", f"{stats['links'].iloc[0]:,}")
-    c8.metric("Total Fines", f"${stats['total_fines'].iloc[0]:,.0f}")
-    c9.metric("Est. National Injuries", f"{stats['neiss_estimate'].iloc[0]:,.0f}")
-    c10.metric("High/Critical Risk", f"{stats['high_risk'].iloc[0]:,}")
+    c6.metric("Manufacturer Profiles", f"{row['profiles']:,}")
+    c7.metric("Cross-Links", f"{row['links']:,}")
+    c8.metric("Total Fines", f"${row['total_fines']:,.0f}")
+    c9.metric("Est. National Injuries", f"{row['neiss_estimate']:,.0f}")
+    c10.metric("High/Critical Risk", f"{row['high_risk']:,}")
 
     # Recalls by year
     col1, col2 = st.columns(2)
@@ -136,6 +148,342 @@ def render_overview():
                         labels={"firm_name": "Firm", "total_fines": "Total Fines ($)"})
             fig.update_layout(template="plotly_dark")
             st.plotly_chart(fig, use_container_width=True)
+
+
+def render_product_injury_analysis():
+    st.header("Product Injury Analysis")
+    st.caption("NEISS injury data resolved by product category — 2M+ emergency room records")
+
+    # KPI row
+    kpi = run_query("""
+        SELECT
+            (SELECT COUNT(DISTINCT product_1_name) FROM neiss_injuries
+             WHERE product_1_name IS NOT NULL AND product_1_name != '') as products,
+            (SELECT COUNT(*) FROM neiss_injuries
+             WHERE product_1_name IS NOT NULL AND product_1_name != '') as resolved,
+            (SELECT COUNT(*) FROM neiss_injuries) as total,
+            (SELECT COUNT(DISTINCT category) FROM neiss_product_codes
+             WHERE category != '' AND category IS NOT NULL) as categories,
+            (SELECT SUM(weight) FROM neiss_injuries
+             WHERE product_1_name IS NOT NULL AND product_1_name != '') as est_injuries
+    """)
+    if not kpi.empty:
+        row = kpi.iloc[0]
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("Product Types Tracked", f"{row['products']:,}")
+        c2.metric("Records Resolved", f"{row['resolved']:,} / {row['total']:,}")
+        c3.metric("Product Categories", f"{row['categories']:,}")
+        c4.metric("Est. National Injuries", f"{row['est_injuries']:,.0f}")
+
+    col1, col2 = st.columns(2)
+    with col1:
+        st.subheader("Top 20 Products by Injury Count")
+        df = run_query("""
+            SELECT product_1_name as product, COUNT(*) as injuries,
+                   CAST(SUM(weight) AS INTEGER) as national_estimate
+            FROM neiss_injuries
+            WHERE product_1_name IS NOT NULL AND product_1_name != ''
+            GROUP BY product_1_name ORDER BY injuries DESC LIMIT 20
+        """)
+        if not df.empty:
+            fig = px.bar(df, x="injuries", y="product", orientation="h",
+                        hover_data=["national_estimate"],
+                        labels={"product": "Product", "injuries": "ER Cases",
+                                "national_estimate": "Nat'l Estimate"})
+            fig.update_layout(template="plotly_dark", height=600)
+            st.plotly_chart(fig, use_container_width=True)
+
+    with col2:
+        st.subheader("Top 20 Products by National Estimate")
+        df = run_query("""
+            SELECT product_1_name as product,
+                   CAST(SUM(weight) AS INTEGER) as national_estimate,
+                   COUNT(*) as injuries
+            FROM neiss_injuries
+            WHERE product_1_name IS NOT NULL AND product_1_name != ''
+            GROUP BY product_1_name ORDER BY national_estimate DESC LIMIT 20
+        """)
+        if not df.empty:
+            fig = px.bar(df, x="national_estimate", y="product", orientation="h",
+                        hover_data=["injuries"],
+                        labels={"product": "Product", "national_estimate": "Nat'l Estimate",
+                                "injuries": "ER Cases"})
+            fig.update_layout(template="plotly_dark", height=600)
+            st.plotly_chart(fig, use_container_width=True)
+
+    # Category breakdown
+    st.subheader("Injuries by Product Category")
+    df = run_query("""
+        SELECT pc.category, COUNT(*) as injuries,
+               CAST(SUM(ni.weight) AS INTEGER) as national_estimate
+        FROM neiss_injuries ni
+        JOIN neiss_product_codes pc ON ni.product_1 = pc.product_code
+        WHERE pc.category IS NOT NULL AND pc.category != ''
+        GROUP BY pc.category ORDER BY injuries DESC
+    """)
+    if not df.empty:
+        fig = px.bar(df, x="injuries", y="category", orientation="h",
+                    hover_data=["national_estimate"],
+                    labels={"category": "Category", "injuries": "ER Cases"})
+        fig.update_layout(template="plotly_dark", height=500)
+        st.plotly_chart(fig, use_container_width=True)
+
+    # Product × Diagnosis heatmap
+    col3, col4 = st.columns(2)
+    with col3:
+        st.subheader("Product × Diagnosis (Top 10 each)")
+        df = run_query("""
+            SELECT product_1_name as product, diagnosis_name as diagnosis,
+                   COUNT(*) as count
+            FROM neiss_injuries
+            WHERE product_1_name IN (
+                SELECT product_1_name FROM neiss_injuries
+                WHERE product_1_name IS NOT NULL AND product_1_name != ''
+                GROUP BY product_1_name ORDER BY COUNT(*) DESC LIMIT 10
+            )
+            AND diagnosis_name IS NOT NULL AND diagnosis_name != ''
+            GROUP BY product_1_name, diagnosis_name
+        """)
+        if not df.empty:
+            pivot = df.pivot_table(index="product", columns="diagnosis",
+                                   values="count", fill_value=0)
+            # Keep top 10 diagnoses by total
+            top_diag = df.groupby("diagnosis")["count"].sum().nlargest(10).index
+            pivot = pivot[[c for c in top_diag if c in pivot.columns]]
+            fig = px.imshow(pivot, aspect="auto",
+                          labels={"x": "Diagnosis", "y": "Product", "color": "Cases"})
+            fig.update_layout(template="plotly_dark", height=500)
+            st.plotly_chart(fig, use_container_width=True)
+
+    with col4:
+        st.subheader("Child-Related Product Injuries")
+        df = run_query("""
+            SELECT ni.product_1_name as product, COUNT(*) as injuries,
+                   CAST(SUM(ni.weight) AS INTEGER) as national_estimate
+            FROM neiss_injuries ni
+            JOIN neiss_product_codes pc ON ni.product_1 = pc.product_code
+            WHERE pc.is_child_related = 1
+            GROUP BY ni.product_1_name ORDER BY injuries DESC LIMIT 15
+        """)
+        if not df.empty:
+            fig = px.bar(df, x="injuries", y="product", orientation="h",
+                        labels={"product": "Product", "injuries": "ER Cases"})
+            fig.update_layout(template="plotly_dark", height=500)
+            st.plotly_chart(fig, use_container_width=True)
+
+    # Yearly trends for top products
+    st.subheader("Yearly Injury Trends — Top 5 Products")
+    df = run_query("""
+        SELECT neiss_year, product_1_name as product,
+               COUNT(*) as injuries
+        FROM neiss_injuries
+        WHERE product_1_name IN (
+            SELECT product_1_name FROM neiss_injuries
+            WHERE product_1_name IS NOT NULL AND product_1_name != ''
+            GROUP BY product_1_name ORDER BY COUNT(*) DESC LIMIT 5
+        )
+        AND neiss_year IS NOT NULL
+        GROUP BY neiss_year, product_1_name
+        ORDER BY neiss_year
+    """)
+    if not df.empty:
+        fig = px.line(df, x="neiss_year", y="injuries", color="product",
+                     labels={"neiss_year": "Year", "injuries": "ER Cases", "product": "Product"})
+        fig.update_layout(template="plotly_dark")
+        st.plotly_chart(fig, use_container_width=True)
+
+
+def render_hazard_validation():
+    st.header("Hazard Validation")
+    st.caption("Do NEISS injury diagnoses match the hazard types stated in recalls?")
+
+    # KPI row
+    kpi = run_query("""
+        SELECT
+            (SELECT COUNT(*) FROM hazard_validation_results) as total,
+            (SELECT COUNT(*) FROM hazard_validation_results WHERE validation_status = 'confirmed') as confirmed,
+            (SELECT COUNT(*) FROM hazard_validation_results WHERE validation_status = 'unexpected_pattern') as unexpected,
+            (SELECT COUNT(*) FROM hazard_validation_results WHERE validation_status = 'insufficient_data') as insufficient,
+            (SELECT COUNT(DISTINCT manufacturer_normalized) FROM hazard_validation_results) as manufacturers
+    """)
+    if not kpi.empty:
+        row = kpi.iloc[0]
+        c1, c2, c3, c4, c5 = st.columns(5)
+        c1.metric("Validations", f"{row['total']:,}")
+        c2.metric("Confirmed", f"{row['confirmed']:,}")
+        c3.metric("Unexpected Pattern", f"{row['unexpected']:,}")
+        c4.metric("Insufficient Data", f"{row['insufficient']:,}")
+        c5.metric("Manufacturers Validated", f"{row['manufacturers']:,}")
+
+    if kpi.empty or kpi.iloc[0]["total"] == 0:
+        st.info("No hazard validation data. Run `python3 -m src.cli crosslink` to generate.")
+        return
+
+    col1, col2 = st.columns(2)
+    with col1:
+        st.subheader("Validation by Hazard Type")
+        df = run_query("""
+            SELECT hazard_type, validation_status, COUNT(*) as count
+            FROM hazard_validation_results
+            GROUP BY hazard_type, validation_status
+            ORDER BY hazard_type
+        """)
+        if not df.empty:
+            fig = px.bar(df, x="hazard_type", y="count", color="validation_status",
+                        color_discrete_map={"confirmed": "#2ecc71",
+                                            "unexpected_pattern": "#e74c3c",
+                                            "insufficient_data": "#f39c12"},
+                        labels={"hazard_type": "Hazard Type", "count": "Manufacturers"})
+            fig.update_layout(template="plotly_dark", xaxis_tickangle=45)
+            st.plotly_chart(fig, use_container_width=True)
+
+    with col2:
+        st.subheader("Average Match Rate by Hazard Type")
+        df = run_query("""
+            SELECT hazard_type, AVG(match_rate) as avg_rate, COUNT(*) as count
+            FROM hazard_validation_results
+            WHERE total_neiss_injuries >= 10
+            GROUP BY hazard_type ORDER BY avg_rate DESC
+        """)
+        if not df.empty:
+            fig = px.bar(df, x="avg_rate", y="hazard_type", orientation="h",
+                        labels={"hazard_type": "Hazard Type", "avg_rate": "Average Match Rate"})
+            fig.update_layout(template="plotly_dark")
+            st.plotly_chart(fig, use_container_width=True)
+
+    # Unexpected pattern manufacturers
+    st.subheader("Manufacturers with Unexpected Injury Patterns")
+    st.caption("Hazard type in recall does not match common NEISS injury diagnoses")
+    df = run_query("""
+        SELECT manufacturer_normalized as manufacturer, hazard_type,
+               total_recalls_with_hazard as recalls, total_neiss_injuries as injuries,
+               matching_diagnosis_count as matching, unexpected_diagnosis_count as unexpected,
+               ROUND(match_rate, 3) as match_rate
+        FROM hazard_validation_results
+        WHERE validation_status = 'unexpected_pattern'
+        ORDER BY total_neiss_injuries DESC
+        LIMIT 50
+    """)
+    if not df.empty:
+        st.dataframe(df, use_container_width=True, height=400)
+
+    # Hazard-diagnosis heatmap
+    st.subheader("Hazard-Diagnosis Reference Map")
+    df = run_query("""
+        SELECT hazard_type, diagnosis_name
+        FROM hazard_diagnosis_map
+        WHERE diagnosis_name IS NOT NULL AND diagnosis_name != ''
+        ORDER BY hazard_type, diagnosis_name
+    """)
+    if not df.empty:
+        df["match"] = 1
+        pivot = df.pivot_table(index="hazard_type", columns="diagnosis_name",
+                               values="match", fill_value=0)
+        fig = px.imshow(pivot, aspect="auto",
+                       labels={"x": "Expected Diagnosis", "y": "Hazard Type", "color": "Expected Match"})
+        fig.update_layout(template="plotly_dark", height=500)
+        st.plotly_chart(fig, use_container_width=True)
+
+
+def render_cross_agency():
+    st.header("Cross-Agency Analysis")
+    st.caption("Manufacturers appearing in BOTH CPSC and FDA enforcement systems")
+
+    # KPI row
+    kpi = run_query("""
+        SELECT
+            (SELECT COUNT(*) FROM fda_adverse_events) as fda_events,
+            (SELECT COUNT(*) FROM fda_device_recalls) as fda_recalls,
+            (SELECT COUNT(*) FROM cpsc_fda_manufacturer_links) as linked_mfrs,
+            (SELECT COUNT(*) FROM cross_links WHERE link_type = 'cross_agency_manufacturer') as cross_links
+    """)
+    if not kpi.empty:
+        row = kpi.iloc[0]
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("FDA Adverse Events", f"{row['fda_events']:,}")
+        c2.metric("FDA Device Recalls", f"{row['fda_recalls']:,}")
+        c3.metric("Cross-Agency Manufacturers", f"{row['linked_mfrs']:,}")
+        c4.metric("Cross-Agency Links", f"{row['cross_links']:,}")
+
+    if kpi.empty or kpi.iloc[0]["fda_events"] == 0:
+        st.info("No FDA data loaded yet. Run `python3 -m src.cli scrape-fda` to import FDA data.")
+        return
+
+    col1, col2 = st.columns(2)
+    with col1:
+        st.subheader("Manufacturers in BOTH CPSC & FDA")
+        df = run_query("""
+            SELECT l.cpsc_manufacturer as manufacturer,
+                   mp.total_recalls as cpsc_recalls,
+                   mp.total_incidents as cpsc_incidents,
+                   (SELECT COUNT(*) FROM fda_adverse_events
+                    WHERE manufacturer_normalized = l.fda_manufacturer) as fda_events,
+                   (SELECT COUNT(*) FROM fda_device_recalls
+                    WHERE manufacturer_normalized = l.fda_manufacturer) as fda_recalls,
+                   mp.compliance_score, mp.risk_tier
+            FROM cpsc_fda_manufacturer_links l
+            JOIN manufacturer_profiles mp ON mp.normalized_name = l.cpsc_manufacturer
+            ORDER BY (mp.total_recalls + fda_events) DESC
+            LIMIT 30
+        """)
+        if not df.empty:
+            st.dataframe(df, use_container_width=True, height=400)
+
+    with col2:
+        st.subheader("FDA Event Types")
+        df = run_query("""
+            SELECT event_type, COUNT(*) as count
+            FROM fda_adverse_events
+            WHERE event_type IS NOT NULL AND event_type != ''
+            GROUP BY event_type ORDER BY count DESC
+        """)
+        if not df.empty:
+            fig = px.pie(df, values="count", names="event_type")
+            fig.update_layout(template="plotly_dark")
+            st.plotly_chart(fig, use_container_width=True)
+
+    col3, col4 = st.columns(2)
+    with col3:
+        st.subheader("Top FDA Manufacturers by Adverse Events")
+        df = run_query("""
+            SELECT manufacturer_name, COUNT(*) as events
+            FROM fda_adverse_events
+            WHERE manufacturer_name IS NOT NULL AND manufacturer_name != ''
+            GROUP BY manufacturer_normalized ORDER BY events DESC LIMIT 15
+        """)
+        if not df.empty:
+            fig = px.bar(df, x="events", y="manufacturer_name", orientation="h",
+                        labels={"manufacturer_name": "Manufacturer", "events": "Events"})
+            fig.update_layout(template="plotly_dark", height=450)
+            st.plotly_chart(fig, use_container_width=True)
+
+    with col4:
+        st.subheader("FDA Patient Outcomes")
+        df = run_query("""
+            SELECT patient_outcome, COUNT(*) as count
+            FROM fda_adverse_events
+            WHERE patient_outcome IS NOT NULL AND patient_outcome != ''
+            GROUP BY patient_outcome ORDER BY count DESC LIMIT 10
+        """)
+        if not df.empty:
+            fig = px.bar(df, x="count", y="patient_outcome", orientation="h",
+                        labels={"patient_outcome": "Outcome", "count": "Events"})
+            fig.update_layout(template="plotly_dark")
+            st.plotly_chart(fig, use_container_width=True)
+
+    # FDA recall class distribution
+    st.subheader("FDA Device Recalls by Status")
+    df = run_query("""
+        SELECT recall_status, COUNT(*) as count
+        FROM fda_device_recalls
+        WHERE recall_status IS NOT NULL AND recall_status != ''
+        GROUP BY recall_status ORDER BY count DESC
+    """)
+    if not df.empty:
+        fig = px.bar(df, x="recall_status", y="count",
+                    labels={"recall_status": "Status", "count": "Recalls"})
+        fig.update_layout(template="plotly_dark")
+        st.plotly_chart(fig, use_container_width=True)
 
 
 def render_search():
@@ -420,26 +768,50 @@ def render_data_explorer():
 
     search = st.text_input("Search (searches text columns)", "")
 
-    if table == "recalls":
-        where = f"WHERE title LIKE '%{search}%' OR manufacturer_names LIKE '%{search}%'" if search else ""
-        df = run_query(f"SELECT recall_number, recall_date, title, manufacturer_names, hazard_description, number_of_units, quality_score FROM recalls {where} ORDER BY recall_date DESC LIMIT 500")
-    elif table == "incidents":
-        where = f"WHERE product_description LIKE '%{search}%' OR manufacturer_name LIKE '%{search}%'" if search else ""
-        df = run_query(f"SELECT report_number, report_date, product_category, manufacturer_name, severity, state, quality_score FROM incidents {where} ORDER BY report_date DESC LIMIT 500")
-    elif table == "penalties":
-        where = f"WHERE firm_name LIKE '%{search}%'" if search else ""
-        df = run_query(f"SELECT penalty_id, firm_name, penalty_type, penalty_date, fine_amount, act, recall_number FROM penalties {where} ORDER BY fine_amount DESC LIMIT 500")
-    elif table == "import_violations":
-        where = f"WHERE firm_name LIKE '%{search}%' OR product_name LIKE '%{search}%'" if search else ""
-        df = run_query(f"SELECT nov_date, product_name, violation_type, citation, firm_name, country, cbp_action FROM import_violations {where} ORDER BY nov_date DESC LIMIT 500")
-    elif table == "manufacturer_profiles":
-        where = f"WHERE manufacturer_name LIKE '%{search}%'" if search else ""
-        df = run_query(f"SELECT manufacturer_name, total_recalls, total_incidents, total_penalties, total_fines, total_import_violations, compliance_score, risk_tier FROM manufacturer_profiles {where} ORDER BY compliance_score ASC LIMIT 500")
-    elif table == "neiss_injuries":
-        where = f"WHERE narrative LIKE '%{search}%'" if search else ""
-        df = run_query(f"SELECT cpsc_case_number, treatment_date, age, sex, body_part_name, diagnosis_name, disposition_name, product_1_name, narrative FROM neiss_injuries {where} ORDER BY treatment_date DESC LIMIT 500")
+    # All queries use parameterized ? placeholders to prevent SQL injection
+    QUERIES = {
+        "recalls": {
+            "cols": "recall_number, recall_date, title, manufacturer_names, hazard_description, number_of_units, quality_score",
+            "search_cols": ["title", "manufacturer_names"],
+            "order": "recall_date DESC",
+        },
+        "incidents": {
+            "cols": "report_number, report_date, product_category, manufacturer_name, severity, state, quality_score",
+            "search_cols": ["product_description", "manufacturer_name"],
+            "order": "report_date DESC",
+        },
+        "penalties": {
+            "cols": "penalty_id, firm_name, penalty_type, penalty_date, fine_amount, act, recall_number",
+            "search_cols": ["firm_name"],
+            "order": "fine_amount DESC",
+        },
+        "import_violations": {
+            "cols": "nov_date, product_name, violation_type, citation, firm_name, country, cbp_action",
+            "search_cols": ["firm_name", "product_name"],
+            "order": "nov_date DESC",
+        },
+        "manufacturer_profiles": {
+            "cols": "manufacturer_name, total_recalls, total_incidents, total_penalties, total_fines, total_import_violations, compliance_score, risk_tier",
+            "search_cols": ["manufacturer_name"],
+            "order": "compliance_score ASC",
+        },
+        "neiss_injuries": {
+            "cols": "cpsc_case_number, treatment_date, age, sex, body_part_name, diagnosis_name, disposition_name, product_1_name, narrative",
+            "search_cols": ["narrative"],
+            "order": "treatment_date DESC",
+        },
+    }
+
+    if table in QUERIES:
+        q = QUERIES[table]
+        if search:
+            where = " OR ".join(f"{c} LIKE ?" for c in q["search_cols"])
+            params = [f"%{search}%"] * len(q["search_cols"])
+            df = run_query(f"SELECT {q['cols']} FROM {table} WHERE {where} ORDER BY {q['order']} LIMIT 500", params)
+        else:
+            df = run_query(f"SELECT {q['cols']} FROM {table} ORDER BY {q['order']} LIMIT 500")
     else:
-        df = run_query(f"SELECT * FROM {table} LIMIT 500")
+        df = run_query("SELECT * FROM cross_links LIMIT 500")
 
     if not df.empty:
         st.dataframe(df, use_container_width=True, height=500)

@@ -170,6 +170,45 @@ def score_import_violation(record: dict) -> float:
     return round(total, 3)
 
 
+def score_fda_event(record: dict) -> float:
+    """Score an FDA adverse event record (0.0-1.0)."""
+    weights = {
+        "event_id": 0.10,
+        "report_date": 0.10,
+        "product_name": 0.15,
+        "manufacturer_name": 0.20,
+        "event_type": 0.15,
+        "patient_outcome": 0.10,
+        "description": 0.10,
+        "source": 0.10,
+    }
+    total = 0.0
+    for field, weight in weights.items():
+        val = record.get(field)
+        if val and str(val).strip():
+            total += weight
+    return round(total, 3)
+
+
+def score_fda_recall(record: dict) -> float:
+    """Score an FDA device recall record (0.0-1.0)."""
+    weights = {
+        "recall_id": 0.10,
+        "product_description": 0.15,
+        "reason_for_recall": 0.20,
+        "manufacturer_name": 0.20,
+        "recall_class": 0.10,
+        "recall_status": 0.10,
+        "event_date": 0.15,
+    }
+    total = 0.0
+    for field, weight in weights.items():
+        val = record.get(field)
+        if val and str(val).strip():
+            total += weight
+    return round(total, 3)
+
+
 def compute_compliance_score(profile: dict) -> float:
     """Compute manufacturer compliance score (0.0-1.0). Lower = worse compliance.
 

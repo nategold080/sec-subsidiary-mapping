@@ -1,6 +1,8 @@
 """Click CLI for CPSC Product Safety Tracker."""
 
 import logging
+from pathlib import Path
+
 import click
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s: %(message)s")
@@ -164,11 +166,63 @@ def scrape_violations():
             conn.close()
 
 
+@cli.command("scrape-fda")
+@click.option("--max-events", default=20000, help="Max events per search query")
+@click.option("--max-recalls", default=60000, help="Max device recalls")
+def scrape_fda(max_events, max_recalls):
+    """Download FDA adverse events and device recalls from OpenFDA API."""
+    from .storage.database import get_connection, init_db, upsert_fda_events_batch, upsert_fda_recalls_batch
+    from .scrapers.fda_downloader import download_device_events, download_device_recalls
+
+    init_db()
+    conn, owned = get_connection()
+    try:
+        # Device adverse events
+        click.echo("Downloading FDA device adverse events...")
+        events = download_device_events(max_per_search=max_events)
+        click.echo(f"Downloaded {len(events):,} FDA adverse events")
+        if events:
+            for i in range(0, len(events), 5000):
+                upsert_fda_events_batch(events[i:i + 5000], conn=conn)
+            conn.commit()
+
+        # Device recalls
+        click.echo("Downloading FDA device recalls...")
+        recalls = download_device_recalls(max_records=max_recalls)
+        click.echo(f"Downloaded {len(recalls):,} FDA device recalls")
+        if recalls:
+            for i in range(0, len(recalls), 5000):
+                upsert_fda_recalls_batch(recalls[i:i + 5000], conn=conn)
+            conn.commit()
+
+        event_count = conn.execute("SELECT COUNT(*) FROM fda_adverse_events").fetchone()[0]
+        recall_count = conn.execute("SELECT COUNT(*) FROM fda_device_recalls").fetchone()[0]
+        click.echo(f"Database now has {event_count:,} FDA events, {recall_count:,} FDA recalls")
+    finally:
+        if owned:
+            conn.close()
+
+
+@cli.command("load-product-codes")
+def load_product_codes():
+    """Load NEISS product codes from YAML config and update NEISS records."""
+    from .storage.database import init_db, load_product_codes_from_yaml, update_neiss_product_names
+
+    init_db()
+    yaml_path = str(Path(__file__).parent.parent / "config" / "neiss_product_codes.yaml")
+    count = load_product_codes_from_yaml(yaml_path)
+    click.echo(f"Loaded {count:,} product codes")
+
+    updated = update_neiss_product_names()
+    click.echo(f"Updated {updated:,} NEISS records with product names")
+
+
 @cli.command("crosslink")
 def crosslink():
-    """Build cross-links and manufacturer profiles."""
+    """Build cross-links, manufacturer profiles, and hazard validation."""
     from .storage.database import get_connection, init_db
     from .normalization.cross_linker import build_cross_links, build_manufacturer_profiles
+    from .validation.hazard_validator import build_hazard_validation, load_hazard_map_to_db
 
     init_db()
     conn, owned = get_connection()
@@ -178,6 +232,14 @@ def crosslink():
 
         profiles = build_manufacturer_profiles(conn)
         click.echo(f"Built {profiles:,} manufacturer profiles")
+
+        # Hazard validation
+        yaml_path = str(Path(__file__).parent.parent / "config" / "hazard_diagnosis_map.yaml")
+        if Path(yaml_path).exists():
+            mappings = load_hazard_map_to_db(conn, yaml_path)
+            click.echo(f"Loaded {mappings:,} hazard-diagnosis mappings")
+            validations = build_hazard_validation(conn)
+            click.echo(f"Built {validations:,} hazard validation records")
     finally:
         if owned:
             conn.close()
@@ -288,6 +350,19 @@ def pipeline(skip_neiss):
         else:
             click.echo("Import violations file not available. Skipping.")
 
+        # 5b. Load product codes
+        click.echo("\n--- Stage 5b: Product Code Resolution ---")
+        from .storage.database import load_product_codes_from_yaml, update_neiss_product_names
+        yaml_path = str(Path(__file__).parent.parent / "config" / "neiss_product_codes.yaml")
+        if Path(yaml_path).exists():
+            pc_count = load_product_codes_from_yaml(yaml_path, conn=conn)
+            conn.commit()
+            updated = update_neiss_product_names(conn=conn)
+            conn.commit()
+            click.echo(f"Loaded {pc_count:,} product codes, updated {updated:,} NEISS records")
+        else:
+            click.echo("Product codes YAML not found, skipping")
+
         # 6. Cross-link
         click.echo("\n--- Stage 6: Cross-Linking ---")
         links = build_cross_links(conn)
@@ -314,8 +389,8 @@ def dashboard():
     """Launch the Streamlit dashboard."""
     import subprocess
     import sys
-    dashboard_path = str(Path(__file__).parent / "dashboard" / "app.py")
-    subprocess.run([sys.executable, "-m", "streamlit", "run", dashboard_path])
+    dash_path = str(Path(__file__).parent / "dashboard" / "app.py")
+    subprocess.run([sys.executable, "-m", "streamlit", "run", dash_path])
 
 
 if __name__ == "__main__":
