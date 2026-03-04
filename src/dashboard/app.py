@@ -183,7 +183,7 @@ def _tab_overview(conn, stats):
             )
             fig.update_layout(showlegend=True, legend_title_text="")
             _dark_layout(fig)
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width="stretch")
 
     with right:
         st.subheader("Top 15 Companies")
@@ -197,7 +197,7 @@ def _tab_overview(conn, stats):
             GROUP BY ol.parent_cik ORDER BY Subsidiaries DESC LIMIT 15
         """, conn)
         if not tdf.empty:
-            st.dataframe(tdf, use_container_width=True, hide_index=True, height=490)
+            st.dataframe(tdf, width="stretch", hide_index=True, height=490)
 
     # Revenue vs Subsidiary Count scatter (if financial data exists)
     if stats["total_revenue"] > 0:
@@ -225,7 +225,7 @@ def _tab_overview(conn, stats):
             )
             fig.update_xaxes(type="log")
             _dark_layout(fig)
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width="stretch")
 
     # Year-over-year summary (compact)
     yoy = _safe_query("""
@@ -241,7 +241,7 @@ def _tab_overview(conn, stats):
                      color_discrete_sequence=["#0984E3"])
         fig.update_traces(texttemplate="%{text} cos", textposition="outside")
         _dark_layout(fig)
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
 
 
 # ---------------------------------------------------------------------------
@@ -316,7 +316,7 @@ def _tab_company_lookup(conn):
             holders["Shares"] = holders["Shares"].apply(
                 lambda v: f"{int(v):,}" if pd.notna(v) else "N/A"
             )
-            st.dataframe(holders, use_container_width=True, hide_index=True)
+            st.dataframe(holders, width="stretch", hide_index=True)
 
     st.markdown("---")
 
@@ -349,7 +349,7 @@ def _tab_company_lookup(conn):
 
     if not sdf.empty:
         st.subheader(f"Subsidiaries ({len(sdf):,})")
-        st.dataframe(sdf, use_container_width=True, hide_index=True, height=400)
+        st.dataframe(sdf, width="stretch", hide_index=True, height=400)
 
         # Jurisdiction breakdown — horizontal bar chart (not pie)
         juris = sdf["Jurisdiction"].value_counts().head(15).reset_index()
@@ -358,7 +358,7 @@ def _tab_company_lookup(conn):
                      color_discrete_sequence=["#0984E3"])
         fig.update_layout(yaxis=dict(autorange="reversed"))
         _dark_layout(fig)
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
 
 
 # ---------------------------------------------------------------------------
@@ -426,7 +426,7 @@ def _tab_explorer(conn):
     df = _safe_query(sql, conn, params=params + [limit])
 
     st.caption(f"Showing {len(df):,} results")
-    st.dataframe(df, use_container_width=True, hide_index=True, height=500)
+    st.dataframe(df, width="stretch", hide_index=True, height=500)
 
 
 # ---------------------------------------------------------------------------
@@ -469,7 +469,7 @@ def _tab_tax_havens(conn):
         st.subheader("Companies with Most Tax Haven Subsidiaries")
         display_df = df.head(25).copy()
         display_df.columns = ["Company", "Ticker", "Haven Subs", "Total Subs", "Haven %"]
-        st.dataframe(display_df, use_container_width=True, hide_index=True, height=450)
+        st.dataframe(display_df, width="stretch", hide_index=True, height=450)
 
     with right:
         st.subheader("Tax Haven Jurisdictions")
@@ -483,7 +483,7 @@ def _tab_tax_havens(conn):
                          orientation="h", color_discrete_sequence=["#E74C3C"])
             fig.update_layout(yaxis=dict(autorange="reversed"))
             _dark_layout(fig)
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width="stretch")
 
     # Financial context section (if financials available)
     if _table_exists(conn, "financials"):
@@ -516,14 +516,14 @@ def _tab_tax_havens(conn):
             )
             fig.update_xaxes(tickangle=45)
             _dark_layout(fig)
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width="stretch")
 
             st.subheader("All Companies with Financial + Tax Haven Data")
             show_df = fin_df[["company_name", "ticker", "revenue", "total_assets", "total_subs", "haven_subs", "haven_pct"]].head(50).copy()
             show_df.columns = ["Company", "Ticker", "Revenue", "Assets", "Total Subs", "Haven Subs", "Haven %"]
             show_df["Revenue"] = show_df["Revenue"].apply(_fmt_currency)
             show_df["Assets"] = show_df["Assets"].apply(_fmt_currency)
-            st.dataframe(show_df, use_container_width=True, hide_index=True)
+            st.dataframe(show_df, width="stretch", hide_index=True)
 
 
 # ---------------------------------------------------------------------------
@@ -553,7 +553,7 @@ def _tab_data_quality(conn, stats):
                            nbins=20, color_discrete_sequence=["#0984E3"],
                            labels={"quality_score": "Quality Score", "count": "Records"})
         _dark_layout(fig)
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
 
     left, right = st.columns(2)
 
@@ -568,7 +568,7 @@ def _tab_data_quality(conn, stats):
             GROUP BY parse_method ORDER BY Filings DESC
         """, conn)
         if not method_df.empty:
-            st.dataframe(method_df, use_container_width=True, hide_index=True)
+            st.dataframe(method_df, width="stretch", hide_index=True)
 
     with right:
         # Jurisdiction normalization
