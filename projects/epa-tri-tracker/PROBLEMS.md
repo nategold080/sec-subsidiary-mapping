@@ -208,11 +208,14 @@ which corresponds to the FRS registry ID.
 not just this insert. Displayed 4.95B records stored instead of 15,712. Fixed to
 use `conn.total_changes - before` for accurate delta counting.
 
-## P45 — EJScreen download from Zenodo incomplete/corrupt — OPEN
+## P45 — EJScreen download from Zenodo incomplete/corrupt — DONE
 httpx truncates download at ~980MB (of 1.16GB). Python's streaming download times out
 before completion. Switched to curl for reliable 1.1GB download. Zenodo archive URL:
 `https://zenodo.org/api/records/14767363/files/2020.zip/content`
-Status: OPEN (curl download in progress)
+Additional fix: Zenodo ZIP contains nested ZIPs (e.g., `EJSCREEN_2020_USPR.csv.zip`
+inside `2020.zip`). Updated `_parse_zenodo_zip()` to handle nested ZIP extraction.
+Also added missing 2020-format column names: `P_CANCR`, `P_LNGISPCT`, `P_UNDR5PCT`,
+`P_OVR64PCT`, `P_PM25_D2`. 220,333 tract records loaded across 3,220 counties.
 
 ## P46 — Excel export illegal character error — DONE
 ECHO enforcement case names contain control characters (e.g., `\x15` in

@@ -37,6 +37,7 @@ EJSCREEN_COLUMNS = {
     "P_OZONE": "ozone_pctl",
     "P_DSLPM": "diesel_pm_pctl",
     "P_CANCER": "air_toxics_cancer_risk_pctl",
+    "P_CANCR": "air_toxics_cancer_risk_pctl",
     "P_RESP": "respiratory_hazard_pctl",
     "P_PTRAF": "traffic_proximity_pctl",
     "P_PNPL": "superfund_proximity_pctl",
@@ -46,10 +47,14 @@ EJSCREEN_COLUMNS = {
     "P_LWINCPCT": "low_income_pctl",
     "P_MINORPCT": "people_of_color_pctl",
     "P_LINGISOPCT": "linguistic_isolation_pctl",
+    "P_LNGISPCT": "linguistic_isolation_pctl",
     "P_UNDER5PCT": "under_5_pctl",
+    "P_UNDR5PCT": "under_5_pctl",
     "P_OVER64PCT": "over_64_pctl",
+    "P_OVR64PCT": "over_64_pctl",
     # EJ Index
     "P_EJ_PM25": "ej_index_pctl",
+    "P_PM25_D2": "ej_index_pctl",
 }
 
 # Alternate column names (different EJScreen versions)
@@ -172,10 +177,36 @@ def _try_zenodo(force: bool = False) -> list[dict]:
 
 
 def _parse_zenodo_zip(zip_path: Path) -> list[dict]:
-    """Parse EJScreen CSV from Zenodo ZIP."""
+    """Parse EJScreen CSV from Zenodo ZIP.
+
+    Zenodo archives contain nested ZIPs (e.g., EJSCREEN_2020_USPR.csv.zip
+    inside 2020.zip). We look for a .csv.zip file first (nested), then
+    fall back to a direct .csv file.
+    """
     records = []
     try:
         with zipfile.ZipFile(zip_path, "r") as zf:
+            # First try: nested CSV ZIP (e.g., EJSCREEN_2020_USPR.csv.zip)
+            csv_zips = [n for n in zf.namelist() if n.endswith(".csv.zip") and "USPR" in n]
+            if not csv_zips:
+                csv_zips = [n for n in zf.namelist() if n.endswith(".csv.zip")]
+
+            if csv_zips:
+                console.print(f"[dim]Found nested ZIP: {csv_zips[0]}[/dim]")
+                with zf.open(csv_zips[0]) as nested_f:
+                    nested_bytes = nested_f.read()
+                    nested_zf = zipfile.ZipFile(io.BytesIO(nested_bytes))
+                    inner_csvs = [n for n in nested_zf.namelist() if n.endswith(".csv")]
+                    if inner_csvs:
+                        with nested_zf.open(inner_csvs[0]) as cf:
+                            content = cf.read().decode("utf-8", errors="replace")
+                            if content.startswith("\ufeff"):
+                                content = content[1:]
+                            records = _parse_ejscreen_csv(content)
+                    nested_zf.close()
+                return records
+
+            # Fallback: direct CSV in ZIP
             csv_files = [n for n in zf.namelist() if n.endswith(".csv")]
             if not csv_files:
                 console.print("[yellow]No CSV in Zenodo ZIP[/yellow]")
