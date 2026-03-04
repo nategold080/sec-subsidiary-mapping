@@ -183,7 +183,7 @@ if section == "Overview":
                 plot_bgcolor="rgba(0,0,0,0)",
                 showlegend=False,
             )
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width="stretch")
 
         with col2:
             st.subheader("REAC Score Distribution")
@@ -204,7 +204,7 @@ if section == "Overview":
                     xaxis_title="Inspection Score",
                     yaxis_title="Count",
                 )
-                st.plotly_chart(fig2, use_container_width=True)
+                st.plotly_chart(fig2, width="stretch")
             else:
                 st.info("No REAC inspection data available.")
 
@@ -230,7 +230,7 @@ if section == "Overview":
             xaxis_title="Allocation Year",
             yaxis_title="Total Units",
         )
-        st.plotly_chart(fig3, use_container_width=True)
+        st.plotly_chart(fig3, width="stretch")
     else:
         st.info("No LIHTC data available. Run the pipeline first.")
 
@@ -276,7 +276,7 @@ elif section == "LIHTC Projects":
             ct.columns = ["credit_type", "count"]
             fig = px.pie(ct, values="count", names="credit_type", color_discrete_sequence=px.colors.qualitative.Set2)
             fig.update_layout(template="plotly_dark", paper_bgcolor="rgba(0,0,0,0)")
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width="stretch")
 
         with col2:
             st.subheader("Units by Allocation Year")
@@ -284,7 +284,7 @@ elif section == "LIHTC Projects":
             yr = valid.groupby("allocation_year").agg(units=("total_units", "sum")).reset_index()
             fig2 = px.bar(yr, x="allocation_year", y="units", color_discrete_sequence=["#0984E3"])
             fig2.update_layout(template="plotly_dark", paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
-            st.plotly_chart(fig2, use_container_width=True)
+            st.plotly_chart(fig2, width="stretch")
 
         # Data table
         st.subheader("Project Records")
@@ -294,7 +294,7 @@ elif section == "LIHTC Projects":
         avail_cols = [c for c in display_cols if c in filtered.columns]
         st.dataframe(
             filtered[avail_cols].sort_values("total_units", ascending=False).head(500),
-            use_container_width=True,
+            width="stretch",
             height=400,
         )
 
@@ -358,7 +358,7 @@ elif section == "REAC Inspections":
                 hover_data=["count"],
             )
             fig.update_layout(template="plotly_dark", paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width="stretch")
 
         with col2:
             st.subheader("Score Distribution")
@@ -366,7 +366,7 @@ elif section == "REAC Inspections":
             fig2 = px.histogram(valid, x="inspection_score", nbins=40, color_discrete_sequence=["#0984E3"])
             fig2.add_vline(x=60, line_dash="dash", line_color="red", annotation_text="Failing")
             fig2.update_layout(template="plotly_dark", paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
-            st.plotly_chart(fig2, use_container_width=True)
+            st.plotly_chart(fig2, width="stretch")
 
         # Worst inspections table
         st.subheader("Lowest-Scoring Inspections")
@@ -375,7 +375,7 @@ elif section == "REAC Inspections":
         avail_cols = [c for c in display_cols if c in filtered.columns]
         st.dataframe(
             filtered[avail_cols].sort_values("inspection_score").head(200),
-            use_container_width=True,
+            width="stretch",
             height=400,
         )
 
@@ -435,7 +435,7 @@ elif section == "Section 8 Contracts":
                         color_continuous_scale="Blues")
             fig.update_layout(template="plotly_dark", paper_bgcolor="rgba(0,0,0,0)",
                             plot_bgcolor="rgba(0,0,0,0)", showlegend=False)
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width="stretch")
 
         with col2:
             st.subheader("Contracts by State (Top 20)")
@@ -445,7 +445,7 @@ elif section == "Section 8 Contracts":
                          color_continuous_scale="Blues")
             fig2.update_layout(template="plotly_dark", paper_bgcolor="rgba(0,0,0,0)",
                               plot_bgcolor="rgba(0,0,0,0)", showlegend=False)
-            st.plotly_chart(fig2, use_container_width=True)
+            st.plotly_chart(fig2, width="stretch")
 
         # Assisted units by state
         st.subheader("Assisted Units by State")
@@ -461,7 +461,7 @@ elif section == "Section 8 Contracts":
                       color="total_units", color_continuous_scale="Blues")
         fig3.update_layout(template="plotly_dark", paper_bgcolor="rgba(0,0,0,0)",
                           plot_bgcolor="rgba(0,0,0,0)", showlegend=False)
-        st.plotly_chart(fig3, use_container_width=True)
+        st.plotly_chart(fig3, width="stretch")
 
         # Data table
         st.subheader("Contract Records")
@@ -471,7 +471,7 @@ elif section == "Section 8 Contracts":
         avail_cols = [c for c in display_cols if c in filtered.columns]
         st.dataframe(
             filtered[avail_cols].sort_values("days_until_expiration", na_position="last").head(500),
-            use_container_width=True, height=400,
+            width="stretch", height=400,
         )
     else:
         st.info("No Section 8 contract data available. Run the pipeline to extract contracts.")
@@ -515,7 +515,7 @@ elif section == "Expiration Risk":
         fig.update_layout(template="plotly_dark", paper_bgcolor="rgba(0,0,0,0)",
                          plot_bgcolor="rgba(0,0,0,0)", xaxis_title="Expiration Year",
                          yaxis_title="Number of Contracts", showlegend=False)
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
 
         # Units at risk by year
         st.subheader("Assisted Units at Risk by Expiration Year")
@@ -524,7 +524,7 @@ elif section == "Expiration Risk":
         fig2.update_layout(template="plotly_dark", paper_bgcolor="rgba(0,0,0,0)",
                           plot_bgcolor="rgba(0,0,0,0)", xaxis_title="Expiration Year",
                           yaxis_title="Assisted Units", showlegend=False)
-        st.plotly_chart(fig2, use_container_width=True)
+        st.plotly_chart(fig2, width="stretch")
 
         # Geographic risk - expiring by state
         st.subheader("Expiring Contracts by State (Next 3 Years)")
@@ -544,7 +544,7 @@ elif section == "Expiration Risk":
                 template="plotly_dark", paper_bgcolor="rgba(0,0,0,0)",
                 geo=dict(bgcolor="rgba(0,0,0,0)"), height=500,
             )
-            st.plotly_chart(fig3, use_container_width=True)
+            st.plotly_chart(fig3, width="stretch")
 
         # Management companies with most expiring contracts
         st.subheader("Management Companies with Most Expiring Contracts (3yr)")
@@ -557,7 +557,7 @@ elif section == "Expiration Risk":
             .reset_index()
         )
         if len(mgmt_exp) > 0:
-            st.dataframe(mgmt_exp, use_container_width=True)
+            st.dataframe(mgmt_exp, width="stretch")
 
         # Full expiring contracts list
         st.subheader("Contracts Expiring Soon")
@@ -567,7 +567,7 @@ elif section == "Expiration Risk":
         avail_cols = [c for c in display_cols if c in expiring_3yr.columns]
         st.dataframe(
             expiring_3yr[avail_cols].sort_values("days_until_expiration").head(500),
-            use_container_width=True, height=400,
+            width="stretch", height=400,
         )
     else:
         st.info("No Section 8 contract data available. Run the pipeline to extract contracts.")
@@ -612,7 +612,7 @@ elif section == "Affordability Analysis":
                 fig = px.pie(status_counts, values="count", names="status",
                             color="status", color_discrete_map=colors)
                 fig.update_layout(template="plotly_dark", paper_bgcolor="rgba(0,0,0,0)")
-                st.plotly_chart(fig, use_container_width=True)
+                st.plotly_chart(fig, width="stretch")
 
             with col2:
                 st.subheader("Rent-to-FMR Ratio Distribution")
@@ -624,13 +624,13 @@ elif section == "Affordability Analysis":
                 fig2.update_layout(template="plotly_dark", paper_bgcolor="rgba(0,0,0,0)",
                                   plot_bgcolor="rgba(0,0,0,0)",
                                   xaxis_title="Rent / FMR Ratio", yaxis_title="Count")
-                st.plotly_chart(fig2, use_container_width=True)
+                st.plotly_chart(fig2, width="stretch")
 
             # Data table
             st.subheader("Property Affordability Details")
             st.dataframe(
                 afford.sort_values("rent_to_fmr_ratio", ascending=False).head(500),
-                use_container_width=True, height=400,
+                width="stretch", height=400,
             )
         else:
             st.info("Affordability data not yet computed. Run the pipeline with FMR data.")
@@ -655,7 +655,7 @@ elif section == "Affordability Analysis":
             template="plotly_dark", paper_bgcolor="rgba(0,0,0,0)",
             geo=dict(bgcolor="rgba(0,0,0,0)"), height=500,
         )
-        st.plotly_chart(fig3, use_container_width=True)
+        st.plotly_chart(fig3, width="stretch")
 
         # FMR year-over-year trend
         if fmr["fiscal_year"].nunique() > 1:
@@ -671,7 +671,7 @@ elif section == "Affordability Analysis":
                           color_discrete_sequence=["#0984E3", "#00b894", "#e17055"])
             fig4.update_layout(template="plotly_dark", paper_bgcolor="rgba(0,0,0,0)",
                               plot_bgcolor="rgba(0,0,0,0)")
-            st.plotly_chart(fig4, use_container_width=True)
+            st.plotly_chart(fig4, width="stretch")
     else:
         st.info("No Fair Market Rent data available. Run 'download' then 'pipeline' to add FMR data.")
 
@@ -702,7 +702,7 @@ elif section == "Tenant Demographics":
             fig = px.pie(occ_counts, values="count", names="occupancy_type",
                         color_discrete_sequence=px.colors.qualitative.Set2)
             fig.update_layout(template="plotly_dark", paper_bgcolor="rgba(0,0,0,0)")
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width="stretch")
 
         with col2:
             st.subheader("Units by Occupancy Type")
@@ -717,7 +717,7 @@ elif section == "Tenant Demographics":
                          color="total_units", color_continuous_scale="Blues")
             fig2.update_layout(template="plotly_dark", paper_bgcolor="rgba(0,0,0,0)",
                               plot_bgcolor="rgba(0,0,0,0)", showlegend=False)
-            st.plotly_chart(fig2, use_container_width=True)
+            st.plotly_chart(fig2, width="stretch")
 
         # REAC scores by occupancy type
         st.subheader("Average REAC Score by Occupancy Type")
@@ -746,9 +746,9 @@ elif section == "Tenant Demographics":
             fig3.add_hline(y=60, line_dash="dash", line_color="red", annotation_text="Failing")
             fig3.update_layout(template="plotly_dark", paper_bgcolor="rgba(0,0,0,0)",
                               plot_bgcolor="rgba(0,0,0,0)", showlegend=False)
-            st.plotly_chart(fig3, use_container_width=True)
+            st.plotly_chart(fig3, width="stretch")
 
-            st.dataframe(occ_scores, use_container_width=True)
+            st.dataframe(occ_scores, width="stretch")
 
         # Occupancy percentage distribution
         has_pct = mf[mf["pct_occupied"].notna() & (mf["pct_occupied"] > 0)]
@@ -759,7 +759,7 @@ elif section == "Tenant Demographics":
             fig4.update_layout(template="plotly_dark", paper_bgcolor="rgba(0,0,0,0)",
                               plot_bgcolor="rgba(0,0,0,0)",
                               xaxis_title="Occupancy %", yaxis_title="Properties")
-            st.plotly_chart(fig4, use_container_width=True)
+            st.plotly_chart(fig4, width="stretch")
     else:
         st.info("No occupancy type data available. Run the pipeline to extract tenant demographics.")
 
@@ -799,7 +799,7 @@ elif section == "Enforcement & Accountability":
         fig1.update_layout(template="plotly_dark", paper_bgcolor="rgba(0,0,0,0)",
                           plot_bgcolor="rgba(0,0,0,0)", showlegend=False,
                           xaxis_title="Action Type", yaxis_title="Count")
-        st.plotly_chart(fig1, use_container_width=True)
+        st.plotly_chart(fig1, width="stretch")
 
         # Chart: by source
         st.subheader("Actions by Data Source")
@@ -808,7 +808,7 @@ elif section == "Enforcement & Accountability":
         fig2 = px.pie(src_counts, names="source", values="count",
                       color_discrete_sequence=["#0984E3", "#E74C3C", "#2ECC71"])
         fig2.update_layout(template="plotly_dark", paper_bgcolor="rgba(0,0,0,0)")
-        st.plotly_chart(fig2, use_container_width=True)
+        st.plotly_chart(fig2, width="stretch")
 
         # Cross-reference with multifamily for geographic breakdown
         mf = load_table("multifamily_properties")
@@ -829,7 +829,7 @@ elif section == "Enforcement & Accountability":
                 )
                 fig3.update_layout(template="plotly_dark", paper_bgcolor="rgba(0,0,0,0)",
                                   plot_bgcolor="rgba(0,0,0,0)", geo_bgcolor="rgba(0,0,0,0)")
-                st.plotly_chart(fig3, use_container_width=True)
+                st.plotly_chart(fig3, width="stretch")
 
         # Resolution status
         st.subheader("Resolution Status")
@@ -838,14 +838,14 @@ elif section == "Enforcement & Accountability":
         fig4 = px.pie(status_counts, names="status", values="count",
                       color_discrete_sequence=["#E74C3C", "#2ECC71", "#F39C12"])
         fig4.update_layout(template="plotly_dark", paper_bgcolor="rgba(0,0,0,0)")
-        st.plotly_chart(fig4, use_container_width=True)
+        st.plotly_chart(fig4, width="stretch")
 
         # Detail table
         st.subheader("Enforcement Actions Detail")
         show_cols = ["property_id", "action_type", "action_date", "description",
                      "resolution_status", "source", "quality_score"]
         avail_cols = [c for c in show_cols if c in enforce.columns]
-        st.dataframe(enforce[avail_cols].head(500), use_container_width=True)
+        st.dataframe(enforce[avail_cols].head(500), width="stretch")
     else:
         st.info("No enforcement data available. Run the pipeline to extract enforcement actions.")
 
@@ -896,7 +896,7 @@ elif section == "Management Companies":
                     yaxis=dict(autorange="reversed"),
                     height=500,
                 )
-                st.plotly_chart(fig, use_container_width=True)
+                st.plotly_chart(fig, width="stretch")
 
             with col2:
                 st.subheader("Worst Average Inspection Scores")
@@ -918,7 +918,7 @@ elif section == "Management Companies":
                     yaxis=dict(autorange="reversed"),
                     height=500,
                 )
-                st.plotly_chart(fig2, use_container_width=True)
+                st.plotly_chart(fig2, width="stretch")
 
             # Score vs. portfolio size scatter
             st.subheader("Portfolio Size vs. Inspection Quality")
@@ -941,7 +941,7 @@ elif section == "Management Companies":
                 xaxis_title="Properties Managed",
                 yaxis_title="Avg Inspection Score",
             )
-            st.plotly_chart(fig3, use_container_width=True)
+            st.plotly_chart(fig3, width="stretch")
 
             # Data table
             st.subheader("Company Details")
@@ -951,7 +951,7 @@ elif section == "Management Companies":
             avail_cols = [c for c in display_cols if c in filtered.columns]
             st.dataframe(
                 filtered[avail_cols].sort_values("property_count", ascending=False).head(500),
-                use_container_width=True,
+                width="stretch",
                 height=400,
             )
     except Exception as e:
@@ -999,7 +999,7 @@ elif section == "Geographic Analysis":
                 geo=dict(bgcolor="rgba(0,0,0,0)"),
                 height=500,
             )
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width="stretch")
 
             # Point map (sampled for performance)
             if len(map_data) > 5000:
@@ -1042,7 +1042,7 @@ elif section == "Geographic Analysis":
                 geo=dict(bgcolor="rgba(0,0,0,0)"),
                 height=500,
             )
-            st.plotly_chart(fig2, use_container_width=True)
+            st.plotly_chart(fig2, width="stretch")
 
 
 # ========================
@@ -1069,7 +1069,7 @@ elif section == "Cross-Links":
                 method_counts.columns = ["method", "count"]
                 fig = px.pie(method_counts, values="count", names="method", color_discrete_sequence=px.colors.qualitative.Set2)
                 fig.update_layout(template="plotly_dark", paper_bgcolor="rgba(0,0,0,0)")
-                st.plotly_chart(fig, use_container_width=True)
+                st.plotly_chart(fig, width="stretch")
 
             with col2:
                 st.subheader("Links by Type")
@@ -1077,17 +1077,17 @@ elif section == "Cross-Links":
                 type_counts["pair"] = type_counts["source_type"] + " → " + type_counts["target_type"]
                 fig2 = px.bar(type_counts, x="pair", y="count", color="pair", color_discrete_sequence=px.colors.qualitative.Set2)
                 fig2.update_layout(template="plotly_dark", paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", showlegend=False)
-                st.plotly_chart(fig2, use_container_width=True)
+                st.plotly_chart(fig2, width="stretch")
 
             # Confidence distribution
             st.subheader("Link Confidence Distribution")
             fig3 = px.histogram(links, x="confidence", nbins=20, color_discrete_sequence=["#0984E3"])
             fig3.update_layout(template="plotly_dark", paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
-            st.plotly_chart(fig3, use_container_width=True)
+            st.plotly_chart(fig3, width="stretch")
 
             # Sample links
             st.subheader("Sample Cross-Links")
-            st.dataframe(links.head(200), use_container_width=True, height=400)
+            st.dataframe(links.head(200), width="stretch", height=400)
         except Exception as e:
             st.warning(f"Error rendering cross-link data: {e}")
 
@@ -1118,13 +1118,13 @@ elif section == "Failing Properties":
                 state_fail.columns = ["state", "count"]
                 fig = px.bar(state_fail, x="state", y="count", color="count", color_continuous_scale="Reds")
                 fig.update_layout(template="plotly_dark", paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
-                st.plotly_chart(fig, use_container_width=True)
+                st.plotly_chart(fig, width="stretch")
 
             with col2:
                 st.subheader("Score Distribution (Failing)")
                 fig2 = px.histogram(failing, x="inspection_score", nbins=30, color_discrete_sequence=["#e74c3c"])
                 fig2.update_layout(template="plotly_dark", paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
-                st.plotly_chart(fig2, use_container_width=True)
+                st.plotly_chart(fig2, width="stretch")
 
             # Cross-reference with management companies
             mf = load_table("multifamily_properties")
@@ -1151,14 +1151,14 @@ elif section == "Failing Properties":
 
                 if len(mgmt_fail) > 0:
                     st.subheader("Management Companies with Most Failing Properties")
-                    st.dataframe(mgmt_fail, use_container_width=True)
+                    st.dataframe(mgmt_fail, width="stretch")
 
             # Full failing list
             st.subheader("All Failing Properties")
             display_cols = ["inspection_id", "property_name", "address", "city", "state",
                             "inspection_date", "inspection_score", "property_type", "units"]
             avail_cols = [c for c in display_cols if c in failing.columns]
-            st.dataframe(failing[avail_cols], use_container_width=True, height=400)
+            st.dataframe(failing[avail_cols], width="stretch", height=400)
         except Exception as e:
             st.warning(f"Error rendering failing properties: {e}")
 
@@ -1195,7 +1195,7 @@ elif section == "Data Explorer":
             st.info(f"Found {len(df):,} matching records")
 
         if sel_cols:
-            st.dataframe(df[sel_cols].head(1000), use_container_width=True, height=500)
+            st.dataframe(df[sel_cols].head(1000), width="stretch", height=500)
 
         # Download
         csv_data = df.to_csv(index=False)
