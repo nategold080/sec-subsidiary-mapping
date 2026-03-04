@@ -8,9 +8,30 @@ import pandas as pd
 import plotly.express as px
 import streamlit as st
 
+import os as _os
+import glob as _glob
+
 _DATA_DIR = Path(__file__).parent.parent.parent / "data"
-_DEPLOY_DB = _DATA_DIR / "h1b_compliance_deploy.db"
-DB_PATH = _DEPLOY_DB if _DEPLOY_DB.exists() else _DATA_DIR / "h1b_compliance.db"
+
+
+def _find_db():
+    """Find the database, checking env var, deploy DB, standard DB, and glob fallback."""
+    env = _os.environ.get("DB_PATH")
+    if env and Path(env).exists():
+        return Path(env)
+    deploy = _DATA_DIR / "h1b_compliance_deploy.db"
+    if deploy.exists():
+        return deploy
+    standard = _DATA_DIR / "h1b_compliance.db"
+    if standard.exists():
+        return standard
+    hits = sorted(_glob.glob(str(_DATA_DIR / "*.db")))
+    if hits:
+        return Path(hits[0])
+    return standard
+
+
+DB_PATH = _find_db()
 
 _NO_DATA_MSG = "No data loaded yet. Run the pipeline first: `python -m src.cli pipeline`"
 
@@ -104,23 +125,50 @@ def main():
     )
 
 
+def _has_lca_data(conn):
+    """Check if full lca_applications table has data (vs deploy DB with summaries only)."""
+    if not _table_exists(conn, "lca_applications"):
+        return False
+    return _safe_fetchone(conn, "SELECT COUNT(*) FROM lca_applications") > 0
+
+
+def _lca_stat(conn, key, default=0):
+    """Get a pre-computed LCA stat from lca_stats summary table, or compute live."""
+    if _table_exists(conn, "lca_stats"):
+        val = _safe_fetchone(conn, "SELECT value FROM lca_stats WHERE key=?", (key,), default=None)
+        if val is not None:
+            return val
+    return default
+
+
 def _overview_tab():
     conn = get_db()
+    has_profiles = _table_exists(conn, "employer_profiles") and _safe_fetchone(conn, "SELECT COUNT(*) FROM employer_profiles") > 0
+    has_lca = _has_lca_data(conn)
+    has_summaries = _table_exists(conn, "lca_stats")
 
-    if not _table_exists(conn, "lca_applications"):
+    if not has_profiles and not has_lca:
         st.warning(_NO_DATA_MSG)
         return
 
-    # KPIs
+    # KPIs — use lca_stats summary when full LCA table is unavailable
     stats = {}
-    for table in ["lca_applications", "uscis_employers", "whd_violations",
-                   "debarments", "employer_profiles", "cross_links"]:
-        stats[table] = _safe_fetchone(conn, f"SELECT COUNT(*) FROM {table}")
+    for table in ["uscis_employers", "whd_violations", "debarments",
+                   "employer_profiles", "cross_links"]:
+        stats[table] = _safe_fetchone(conn, f"SELECT COUNT(*) FROM {table}") if _table_exists(conn, table) else 0
 
-    stats["unique_employers"] = _safe_fetchone(conn, "SELECT COUNT(DISTINCT employer_name) FROM lca_applications")
-    stats["fiscal_years"] = _safe_fetchone(conn, "SELECT COUNT(DISTINCT fiscal_year) FROM lca_applications WHERE fiscal_year IS NOT NULL")
-    stats["avg_wage"] = _safe_fetchone(conn, "SELECT AVG(annualized_wage) FROM lca_applications WHERE annualized_wage > 0")
-    stats["total_workers"] = _safe_fetchone(conn, "SELECT COALESCE(SUM(total_workers), 0) FROM lca_applications")
+    if has_lca:
+        stats["lca_applications"] = _safe_fetchone(conn, "SELECT COUNT(*) FROM lca_applications")
+        stats["unique_employers"] = _safe_fetchone(conn, "SELECT COUNT(DISTINCT employer_name) FROM lca_applications")
+        stats["fiscal_years"] = _safe_fetchone(conn, "SELECT COUNT(DISTINCT fiscal_year) FROM lca_applications WHERE fiscal_year IS NOT NULL")
+        stats["avg_wage"] = _safe_fetchone(conn, "SELECT AVG(annualized_wage) FROM lca_applications WHERE annualized_wage > 0")
+        stats["total_workers"] = _safe_fetchone(conn, "SELECT COALESCE(SUM(total_workers), 0) FROM lca_applications")
+    else:
+        stats["lca_applications"] = int(_lca_stat(conn, "total_lcas"))
+        stats["unique_employers"] = int(_lca_stat(conn, "unique_employers"))
+        stats["fiscal_years"] = int(_lca_stat(conn, "fiscal_years"))
+        stats["avg_wage"] = _lca_stat(conn, "avg_wage", 0)
+        stats["total_workers"] = int(_lca_stat(conn, "total_workers"))
 
     c1, c2, c3, c4 = st.columns(4)
     c1.metric("LCA Applications", f"{stats['lca_applications']:,}")
@@ -130,14 +178,14 @@ def _overview_tab():
 
     c5, c6, c7, c8 = st.columns(4)
     c5.metric("Employer Profiles", f"{stats['employer_profiles']:,}")
-    c6.metric("Average Wage", f"${stats['avg_wage']:,.0f}")
+    avg_w = stats["avg_wage"]
+    c6.metric("Average Wage", f"${avg_w:,.0f}" if avg_w else "N/A")
     c7.metric("Total Workers", f"{stats['total_workers']:,}")
     c8.metric("Debarments", f"{stats['debarments']:,}")
 
     col1, col2 = st.columns(2)
 
     with col1:
-        # Top 10 by LCA volume
         df = query("""
             SELECT employer_name, total_lcas
             FROM employer_profiles ORDER BY total_lcas DESC LIMIT 10
@@ -150,13 +198,14 @@ def _overview_tab():
             st.plotly_chart(fig, use_container_width=True)
 
     with col2:
-        # LCA by fiscal year
-        df = query("""
-            SELECT fiscal_year, COUNT(*) as count
-            FROM lca_applications
-            WHERE fiscal_year IS NOT NULL
-            GROUP BY fiscal_year ORDER BY fiscal_year
-        """)
+        if has_lca:
+            df = query("""
+                SELECT fiscal_year, COUNT(*) as count
+                FROM lca_applications WHERE fiscal_year IS NOT NULL
+                GROUP BY fiscal_year ORDER BY fiscal_year
+            """)
+        else:
+            df = query("SELECT fiscal_year, count FROM lca_year_summary ORDER BY fiscal_year")
         if not df.empty:
             fig = px.bar(df, x="fiscal_year", y="count",
                          title="LCA Applications by Fiscal Year",
@@ -165,23 +214,23 @@ def _overview_tab():
 
     col3, col4 = st.columns(2)
     with col3:
-        # Wage distribution
-        df = query("""
-            SELECT CASE
-                WHEN annualized_wage < 60000 THEN '<$60K'
-                WHEN annualized_wage < 80000 THEN '$60-80K'
-                WHEN annualized_wage < 100000 THEN '$80-100K'
-                WHEN annualized_wage < 120000 THEN '$100-120K'
-                WHEN annualized_wage < 150000 THEN '$120-150K'
-                WHEN annualized_wage < 200000 THEN '$150-200K'
-                WHEN annualized_wage < 300000 THEN '$200-300K'
-                ELSE '$300K+'
-            END as wage_band,
-            COUNT(*) as count
-            FROM lca_applications
-            WHERE annualized_wage > 0
-            GROUP BY wage_band
-        """)
+        if has_lca:
+            df = query("""
+                SELECT CASE
+                    WHEN annualized_wage < 60000 THEN '<$60K'
+                    WHEN annualized_wage < 80000 THEN '$60-80K'
+                    WHEN annualized_wage < 100000 THEN '$80-100K'
+                    WHEN annualized_wage < 120000 THEN '$100-120K'
+                    WHEN annualized_wage < 150000 THEN '$120-150K'
+                    WHEN annualized_wage < 200000 THEN '$150-200K'
+                    WHEN annualized_wage < 300000 THEN '$200-300K'
+                    ELSE '$300K+'
+                END as wage_band, COUNT(*) as count
+                FROM lca_applications WHERE annualized_wage > 0
+                GROUP BY wage_band
+            """)
+        else:
+            df = query("SELECT wage_band, count FROM lca_wage_distribution ORDER BY sort_order")
         if not df.empty:
             order = ["<$60K", "$60-80K", "$80-100K", "$100-120K",
                      "$120-150K", "$150-200K", "$200-300K", "$300K+"]
@@ -193,14 +242,15 @@ def _overview_tab():
             st.plotly_chart(fig, use_container_width=True)
 
     with col4:
-        # Top SOC codes
-        df = query("""
-            SELECT soc_code, soc_title, COUNT(*) as count
-            FROM lca_applications
-            WHERE soc_code IS NOT NULL AND soc_code != ''
-            GROUP BY soc_code, soc_title
-            ORDER BY count DESC LIMIT 10
-        """)
+        if has_lca:
+            df = query("""
+                SELECT soc_code, soc_title, COUNT(*) as count
+                FROM lca_applications
+                WHERE soc_code IS NOT NULL AND soc_code != ''
+                GROUP BY soc_code, soc_title ORDER BY count DESC LIMIT 10
+            """)
+        else:
+            df = query("SELECT soc_code, soc_title, count FROM lca_soc_summary ORDER BY count DESC LIMIT 10")
         if not df.empty:
             df["label"] = df["soc_code"] + " " + df["soc_title"].str[:30]
             fig = px.bar(df, x="count", y="label", orientation="h",
@@ -674,20 +724,25 @@ def _geographic_tab():
     st.subheader("Geographic Analysis")
 
     conn = get_db()
-    if not _table_exists(conn, "lca_applications"):
+    has_lca = _has_lca_data(conn)
+    has_state_summary = _table_exists(conn, "lca_state_summary")
+
+    if not has_lca and not has_state_summary:
         st.warning(_NO_DATA_MSG)
         return
 
     col1, col2 = st.columns(2)
 
     with col1:
-        # LCAs by state
-        df = query("""
-            SELECT employer_state as state, COUNT(*) as count
-            FROM lca_applications
-            WHERE employer_state IS NOT NULL AND LENGTH(employer_state) = 2
-            GROUP BY employer_state ORDER BY count DESC
-        """)
+        if has_lca:
+            df = query("""
+                SELECT employer_state as state, COUNT(*) as count
+                FROM lca_applications
+                WHERE employer_state IS NOT NULL AND LENGTH(employer_state) = 2
+                GROUP BY employer_state ORDER BY count DESC
+            """)
+        else:
+            df = query("SELECT state, count FROM lca_state_summary ORDER BY count DESC")
         if not df.empty:
             fig = px.choropleth(df, locations="state", locationmode="USA-states",
                                 color="count", scope="usa",
@@ -697,18 +752,23 @@ def _geographic_tab():
             st.plotly_chart(fig, use_container_width=True)
 
     with col2:
-        # Average wage by state
-        df = query("""
-            SELECT employer_state as state,
-                   ROUND(AVG(annualized_wage), 0) as avg_wage,
-                   COUNT(*) as count
-            FROM lca_applications
-            WHERE employer_state IS NOT NULL AND LENGTH(employer_state) = 2
-                  AND annualized_wage > 0
-            GROUP BY employer_state
-            HAVING count >= 10
-            ORDER BY avg_wage DESC
-        """)
+        if has_lca:
+            df = query("""
+                SELECT employer_state as state,
+                       ROUND(AVG(annualized_wage), 0) as avg_wage,
+                       COUNT(*) as count
+                FROM lca_applications
+                WHERE employer_state IS NOT NULL AND LENGTH(employer_state) = 2
+                      AND annualized_wage > 0
+                GROUP BY employer_state HAVING count >= 10
+                ORDER BY avg_wage DESC
+            """)
+        else:
+            df = query("""
+                SELECT state, ROUND(avg_wage, 0) as avg_wage, count
+                FROM lca_state_summary WHERE count >= 10
+                ORDER BY avg_wage DESC
+            """)
         if not df.empty:
             fig = px.choropleth(df, locations="state", locationmode="USA-states",
                                 color="avg_wage", scope="usa",
@@ -717,18 +777,24 @@ def _geographic_tab():
                                 labels={"avg_wage": "Avg Wage ($)"})
             st.plotly_chart(fig, use_container_width=True)
 
-    # Top states table
-    df = query("""
-        SELECT employer_state as state, COUNT(*) as lcas,
-               COUNT(DISTINCT employer_name) as employers,
-               ROUND(AVG(annualized_wage), 0) as avg_wage,
-               ROUND(AVG(wage_ratio), 3) as avg_wage_ratio
-        FROM lca_applications
-        WHERE employer_state IS NOT NULL AND LENGTH(employer_state) = 2
-              AND annualized_wage > 0
-        GROUP BY employer_state
-        ORDER BY lcas DESC LIMIT 20
-    """)
+    if has_lca:
+        df = query("""
+            SELECT employer_state as state, COUNT(*) as lcas,
+                   COUNT(DISTINCT employer_name) as employers,
+                   ROUND(AVG(annualized_wage), 0) as avg_wage,
+                   ROUND(AVG(wage_ratio), 3) as avg_wage_ratio
+            FROM lca_applications
+            WHERE employer_state IS NOT NULL AND LENGTH(employer_state) = 2
+                  AND annualized_wage > 0
+            GROUP BY employer_state ORDER BY lcas DESC LIMIT 20
+        """)
+    else:
+        df = query("""
+            SELECT state, count as lcas, employers,
+                   ROUND(avg_wage, 0) as avg_wage,
+                   ROUND(avg_wage_ratio, 3) as avg_wage_ratio
+            FROM lca_state_summary ORDER BY lcas DESC LIMIT 20
+        """)
     if not df.empty:
         st.subheader("Top 20 States by LCA Volume")
         st.dataframe(df, use_container_width=True)
@@ -839,9 +905,12 @@ def _explorer_tab():
     conn = get_db()
     ALLOWED_TABLES = ["employer_profiles", "lca_applications", "uscis_employers",
                        "debarments", "cross_links", "public_companies",
-                       "company_financials", "employer_sec_links", "naics_codes"]
-    # Filter to only tables that actually exist
-    available_tables = [t for t in ALLOWED_TABLES if _table_exists(conn, t)]
+                       "company_financials", "employer_sec_links", "naics_codes",
+                       "lca_year_summary", "lca_state_summary", "lca_wage_distribution",
+                       "lca_soc_summary"]
+    # Filter to only tables that actually exist and have data
+    available_tables = [t for t in ALLOWED_TABLES
+                        if _table_exists(conn, t) and _safe_fetchone(conn, f"SELECT COUNT(*) FROM {t}") > 0]
     if not available_tables:
         st.warning(_NO_DATA_MSG)
         return
