@@ -20,3 +20,6 @@ Cross-linking uses exact normalized name only. Employers with significant name v
 
 ## P7: USCIS FY2024 not yet posted — OPEN
 USCIS data hub archive only goes through FY2023. FY2024 may still be in the interactive tool only.
+
+## P8: Enrichment 3 (WHD Enforcement) blocked by API key — OPEN
+WHD enforcement enrichment requires the same DOL API key as P4. The enrichment plan includes full schema (whd_enforcement table), employer matching pipeline, compliance score improvements, and Enforcement Actions dashboard tab. All infrastructure is ready; awaiting API key registration at dataportal.dol.gov/registration. This is the same key needed by the employer-labor-compliance project.
