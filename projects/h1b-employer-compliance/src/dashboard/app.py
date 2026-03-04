@@ -638,10 +638,12 @@ def _financial_tab():
             FROM employer_profiles ep
             WHERE ep.is_public = 1 AND ep.revenue IS NOT NULL
                   AND ep.total_lcas >= 10
+                  AND ep.h1b_per_1000_employees IS NOT NULL
             ORDER BY ep.revenue DESC
             LIMIT 100
         """)
         if not df.empty:
+            df["h1b_per_1000"] = pd.to_numeric(df["h1b_per_1000"], errors="coerce").fillna(0.1)
             fig = px.scatter(df, x="revenue_b", y="total_lcas",
                              hover_name="employer_name",
                              size="h1b_per_1000",
