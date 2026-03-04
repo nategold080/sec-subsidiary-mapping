@@ -115,7 +115,7 @@ def main():
         <div style='text-align: center; color: #888; padding: 20px;'>
             Built by Nathan Goldberg |
             <a href='mailto:nathanmauricegoldberg@gmail.com'>nathanmauricegoldberg@gmail.com</a> |
-            <a href='https://linkedin.com/in/nathangoldberg'>LinkedIn</a><br>
+            <a href='https://www.linkedin.com/in/nathan-goldberg-62a44522a/'>LinkedIn</a><br>
             Data sourced from DOL Wage & Hour Division, OSHA, and NLRB public records.
         </div>
         """,

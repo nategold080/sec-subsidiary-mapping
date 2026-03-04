@@ -1162,7 +1162,7 @@ st.markdown(
     <div class="footer">
         Built by Nathan Goldberg |
         <a href="mailto:nathanmauricegoldberg@gmail.com">nathanmauricegoldberg@gmail.com</a> |
-        <a href="https://www.linkedin.com/in/nathanmauricegoldberg/" target="_blank">LinkedIn</a>
+        <a href="https://www.linkedin.com/in/nathan-goldberg-62a44522a/" target="_blank">LinkedIn</a>
     </div>
     """,
     unsafe_allow_html=True,

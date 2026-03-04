@@ -10,7 +10,7 @@ Seven interactive sections:
 6. CRA vs. Complaints
 7. Trends & Patterns
 
-Built by Nathan Goldberg | nathanmauricegoldberg@gmail.com | linkedin.com/in/nathangoldberg
+Built by Nathan Goldberg | nathanmauricegoldberg@gmail.com | www.linkedin.com/in/nathan-goldberg-62a44522a/
 """
 
 import sqlite3
@@ -199,7 +199,7 @@ def render_footer():
         "Built by Nathan Goldberg | "
         "<a href='mailto:nathanmauricegoldberg@gmail.com' style='color: #0984E3;'>"
         "nathanmauricegoldberg@gmail.com</a> | "
-        "<a href='https://linkedin.com/in/nathangoldberg' style='color: #0984E3;'>"
+        "<a href='https://www.linkedin.com/in/nathan-goldberg-62a44522a/' style='color: #0984E3;'>"
         "LinkedIn</a>"
         "</div>",
         unsafe_allow_html=True,
@@ -252,7 +252,7 @@ st.sidebar.markdown("---")
 st.sidebar.markdown(
     "**Built by Nathan Goldberg**  \n"
     "nathanmauricegoldberg@gmail.com  \n"
-    "[LinkedIn](https://linkedin.com/in/nathangoldberg)"
+    "[LinkedIn](https://www.linkedin.com/in/nathan-goldberg-62a44522a/)"
 )
 
 

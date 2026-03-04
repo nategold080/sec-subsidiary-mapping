@@ -101,6 +101,7 @@ with st.sidebar:
             "Staffing Analysis",
             "Financial Analysis",
             "Related Party Transactions",
+            "California Financial Detail",
             "Chain Report Cards",
             "Star Rating Reality Check",
             "Quality Comparison",
@@ -124,7 +125,7 @@ with st.sidebar:
 
     st.divider()
     st.markdown(
-        "**Built by [Nathan Goldberg](https://www.linkedin.com/in/nathanmauricegoldberg/)**"
+        "**Built by [Nathan Goldberg](https://www.linkedin.com/in/nathan-goldberg-62a44522a/)**"
     )
     st.caption("nathanmauricegoldberg@gmail.com")
 
@@ -399,6 +400,45 @@ elif page == "Ownership Analysis":
             st.dataframe(pe_df, use_container_width=True, hide_index=True)
         else:
             st.info("No PE-owned facilities found.")
+
+        # ── Shared Address Networks ──
+        st.divider()
+        st.subheader("Shared Address Networks")
+        st.caption(
+            "Clusters of distinct owner LLCs sharing the same registered address — "
+            "a common PE structure where separate LLCs are created for each facility "
+            "but all route back to the same principal office."
+        )
+
+        network_df = run_query("""
+            SELECT network_id, owner_count, facility_count, normalized_address,
+                   owner_names, states, has_pe_flag, has_reit_flag, avg_overall_rating
+            FROM address_networks
+            ORDER BY owner_count DESC
+            LIMIT 50
+        """)
+
+        if not network_df.empty:
+            c1, c2, c3 = st.columns(3)
+            c1.metric("Address Networks", f"{len(network_df):,}")
+            c2.metric("PE-Linked Networks", int(network_df["has_pe_flag"].sum()))
+            c3.metric("Total Facilities in Networks", int(network_df["facility_count"].sum()))
+
+            # Distribution chart
+            fig = px.histogram(network_df, x="owner_count",
+                               title="Network Size Distribution (# owners at same address)",
+                               labels={"owner_count": "Owners at Address", "count": "Networks"})
+            fig.update_layout(template="plotly_dark", paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
+            st.plotly_chart(fig, use_container_width=True)
+
+            st.dataframe(
+                network_df[["network_id", "owner_count", "facility_count", "owner_names",
+                            "has_pe_flag", "has_reit_flag", "avg_overall_rating"]],
+                use_container_width=True, hide_index=True
+            )
+        else:
+            st.info("Run shared address detection to populate. Use `python -m src.cli normalize`.")
+
     except Exception as e:
         st.warning(f"Error loading ownership data: {e}")
 
@@ -884,6 +924,157 @@ elif page == "Financial Analysis":
                 fig.update_layout(template="plotly_dark", paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
                 st.plotly_chart(fig, use_container_width=True)
 
+            # ── RPT Transparency Analysis ──
+            st.divider()
+            st.subheader("RPT Transparency Analysis")
+            st.caption(
+                "Flags facilities reporting suspiciously low related-party transactions "
+                "relative to their peers. Based on NBER methodology (Gandhi & Olenski, w32258) "
+                "finding 68% of nursing home profits hidden through RPT."
+            )
+
+            anomaly_df = run_query("""
+                SELECT anomaly_type, COUNT(*) as count,
+                       SUM(CASE WHEN is_pe_owned = 1 THEN 1 ELSE 0 END) as pe_count
+                FROM rpt_anomaly_flags
+                GROUP BY anomaly_type
+                ORDER BY count DESC
+            """)
+
+            if not anomaly_df.empty:
+                c1, c2, c3 = st.columns(3)
+                zero_row = anomaly_df[anomaly_df["anomaly_type"] == "zero_reporter"]
+                under_row = anomaly_df[anomaly_df["anomaly_type"] == "under_reporter"]
+                normal_row = anomaly_df[anomaly_df["anomaly_type"] == "normal"]
+                c1.metric("Zero Reporters", int(zero_row["count"].iloc[0]) if not zero_row.empty else 0,
+                          help="Facilities reporting $0 in related-party transactions despite >$1M revenue")
+                c2.metric("Under Reporters", int(under_row["count"].iloc[0]) if not under_row.empty else 0,
+                          help="Facilities >1.5 SDs below their peer group median RPT ratio")
+                c3.metric("Normal", int(normal_row["count"].iloc[0]) if not normal_row.empty else 0)
+
+                # Zero reporters by ownership type
+                zero_by_type = run_query(f"""
+                    SELECT p.owner_classification, COUNT(*) as count
+                    FROM rpt_anomaly_flags raf
+                    JOIN providers p ON raf.federal_provider_number = p.federal_provider_number
+                    WHERE raf.anomaly_type IN ('zero_reporter', 'under_reporter')
+                    {'AND p.provider_state IN (' + ','.join(['?']*len(selected_states)) + ')' if selected_states else ''}
+                    GROUP BY p.owner_classification
+                    ORDER BY count DESC
+                """, state_filter_params())
+
+                if not zero_by_type.empty:
+                    fig = px.bar(zero_by_type, x="owner_classification", y="count",
+                                 color="owner_classification",
+                                 title="Flagged Facilities by Ownership Type",
+                                 labels={"owner_classification": "Owner Type", "count": "Flagged Facilities"})
+                    fig.update_layout(template="plotly_dark", paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
+                    st.plotly_chart(fig, use_container_width=True)
+
+                # Revenue vs RPT scatter
+                scatter_df = run_query(f"""
+                    SELECT p.provider_name, p.owner_classification,
+                           cr.total_revenue, COALESCE(rpt_sum.total_rpt, 0) as total_rpt,
+                           raf.anomaly_type
+                    FROM rpt_anomaly_flags raf
+                    JOIN providers p ON raf.federal_provider_number = p.federal_provider_number
+                    JOIN cost_reports cr ON raf.federal_provider_number = cr.federal_provider_number
+                    INNER JOIN (
+                        SELECT federal_provider_number, MAX(fiscal_year) as max_fy
+                        FROM cost_reports GROUP BY federal_provider_number
+                    ) latest ON cr.federal_provider_number = latest.federal_provider_number
+                           AND cr.fiscal_year = latest.max_fy
+                    LEFT JOIN (
+                        SELECT federal_provider_number, SUM(amount) as total_rpt
+                        FROM related_party_transactions WHERE amount IS NOT NULL
+                        GROUP BY federal_provider_number
+                    ) rpt_sum ON raf.federal_provider_number = rpt_sum.federal_provider_number
+                    WHERE cr.total_revenue > 100000
+                    {'AND p.provider_state IN (' + ','.join(['?']*len(selected_states)) + ')' if selected_states else ''}
+                    LIMIT 2000
+                """, state_filter_params())
+
+                if not scatter_df.empty:
+                    fig = px.scatter(scatter_df, x="total_revenue", y="total_rpt",
+                                     color="owner_classification", symbol="anomaly_type",
+                                     hover_data=["provider_name"],
+                                     title="Revenue vs RPT Spending (colored by ownership)",
+                                     labels={"total_revenue": "Total Revenue ($)", "total_rpt": "Total RPT ($)"})
+                    fig.update_layout(template="plotly_dark", paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
+                    st.plotly_chart(fig, use_container_width=True)
+
+                # Table of flagged under-reporters
+                flagged_df = run_query(f"""
+                    SELECT p.provider_name, p.provider_state, p.owner_classification,
+                           raf.anomaly_type, raf.actual_rpt_ratio, raf.peer_median_ratio,
+                           raf.z_score, raf.flag_reason
+                    FROM rpt_anomaly_flags raf
+                    JOIN providers p ON raf.federal_provider_number = p.federal_provider_number
+                    WHERE raf.anomaly_type IN ('zero_reporter', 'under_reporter')
+                    {'AND p.provider_state IN (' + ','.join(['?']*len(selected_states)) + ')' if selected_states else ''}
+                    ORDER BY raf.z_score ASC
+                    LIMIT 50
+                """, state_filter_params())
+
+                if not flagged_df.empty:
+                    st.subheader("Flagged Facilities — RPT Under-Reporting")
+                    st.dataframe(flagged_df, use_container_width=True, hide_index=True)
+            else:
+                st.info("Run RPT anomaly detection to populate this section. Use `python -m src.cli validate`.")
+
+            # ── SEC EDGAR REIT Filings ──
+            st.divider()
+            st.subheader("SEC EDGAR — REIT 10-K Filings")
+            st.caption(
+                "Annual report filings from publicly traded healthcare REITs. "
+                "Compare SEC-disclosed portfolio size and lease income against "
+                "HCRIS self-reported data at their facilities."
+            )
+
+            sec_df = run_query("""
+                SELECT reit_name, COUNT(*) as filing_count,
+                       MIN(filing_date) as earliest_filing,
+                       MAX(filing_date) as latest_filing
+                FROM sec_reit_filings
+                GROUP BY reit_name
+                ORDER BY filing_count DESC
+            """)
+
+            if not sec_df.empty:
+                c1, c2 = st.columns(2)
+                c1.metric("REITs Tracked", len(sec_df))
+                c2.metric("Total 10-K Filings", int(sec_df["filing_count"].sum()))
+
+                st.dataframe(sec_df, use_container_width=True, hide_index=True)
+
+                # Cross-reference: REIT facilities vs HCRIS data
+                reit_comparison = run_query("""
+                    SELECT p.owner_classification,
+                           COUNT(DISTINCT p.federal_provider_number) as facilities,
+                           AVG(cr.total_revenue) as avg_hcris_revenue,
+                           SUM(COALESCE(rpt_sum.total_rpt, 0)) as total_hcris_rpt
+                    FROM providers p
+                    LEFT JOIN cost_reports cr ON p.federal_provider_number = cr.federal_provider_number
+                    LEFT JOIN (
+                        SELECT federal_provider_number, MAX(fiscal_year) as max_fy
+                        FROM cost_reports GROUP BY federal_provider_number
+                    ) latest ON cr.federal_provider_number = latest.federal_provider_number
+                           AND cr.fiscal_year = latest.max_fy
+                    LEFT JOIN (
+                        SELECT federal_provider_number, SUM(amount) as total_rpt
+                        FROM related_party_transactions WHERE amount IS NOT NULL
+                        GROUP BY federal_provider_number
+                    ) rpt_sum ON p.federal_provider_number = rpt_sum.federal_provider_number
+                    WHERE p.owner_classification = 'reit'
+                    GROUP BY p.owner_classification
+                """)
+
+                if not reit_comparison.empty:
+                    st.subheader("REIT-Owned Facilities — HCRIS Financial Summary")
+                    st.dataframe(reit_comparison, use_container_width=True, hide_index=True)
+            else:
+                st.info("Run `python -m src.cli download-sec` to fetch REIT filing metadata from SEC EDGAR.")
+
     except Exception as e:
         st.warning(f"Error loading financial data: {e}")
 
@@ -1038,6 +1229,115 @@ elif page == "Related Party Transactions":
 
     except Exception as e:
         st.warning(f"Error loading related-party data: {e}")
+
+
+elif page == "California Financial Detail":
+    st.header("California Financial Detail (HCAI)")
+    st.caption(
+        "Detailed financial disclosure from California's Department of Health Care "
+        "Access and Information (HCAI). CA requires line-item financial reporting "
+        "under SB 650, making it the gold standard for nursing home financial transparency."
+    )
+
+    try:
+        hcai_count = run_query("SELECT COUNT(*) as n FROM ca_hcai_financials")
+        total_hcai = int(hcai_count["n"].iloc[0]) if not hcai_count.empty else 0
+
+        if total_hcai == 0:
+            st.info(
+                "No CA HCAI data loaded. Run `python -m src.cli download-hcai-ca` "
+                "and `python -m src.cli extract-hcai-ca` to load California financial disclosures."
+            )
+        else:
+            # KPI cards
+            kpis = run_query("""
+                SELECT
+                    COUNT(DISTINCT ca_facility_id) as facilities,
+                    AVG(total_revenue) as avg_revenue,
+                    AVG(management_fees) as avg_mgmt_fee,
+                    AVG(related_party_expenses) as avg_rpt,
+                    AVG(net_income) as avg_net_income,
+                    MAX(report_year) as latest_year
+                FROM ca_hcai_financials
+                WHERE total_revenue > 100000
+            """)
+
+            if not kpis.empty:
+                c1, c2, c3, c4 = st.columns(4)
+                c1.metric("CA Facilities", f"{int(kpis['facilities'].iloc[0]):,}")
+                c2.metric("Avg Revenue", format_currency(kpis["avg_revenue"].iloc[0]))
+                c3.metric("Avg Mgmt Fees", format_currency(kpis["avg_mgmt_fee"].iloc[0]))
+                c4.metric("Avg RPT Expenses", format_currency(kpis["avg_rpt"].iloc[0]))
+
+            st.divider()
+
+            # Management fee comparison: HCAI vs HCRIS
+            st.subheader("Management Fee Comparison: HCAI vs Federal HCRIS")
+            st.caption(
+                "CA facilities report management fees to both state (HCAI) and federal (HCRIS). "
+                "Discrepancies may indicate selective reporting."
+            )
+
+            comparison = run_query("""
+                SELECT
+                    h.facility_name,
+                    h.federal_provider_number,
+                    h.management_fees as hcai_mgmt_fees,
+                    h.related_party_expenses as hcai_rpt,
+                    h.total_revenue as hcai_revenue,
+                    cr.total_revenue as hcris_revenue,
+                    COALESCE(rpt_sum.total_rpt, 0) as hcris_rpt
+                FROM ca_hcai_financials h
+                LEFT JOIN cost_reports cr ON h.federal_provider_number = cr.federal_provider_number
+                LEFT JOIN (
+                    SELECT federal_provider_number, MAX(fiscal_year) as max_fy
+                    FROM cost_reports GROUP BY federal_provider_number
+                ) latest ON cr.federal_provider_number = latest.federal_provider_number
+                       AND cr.fiscal_year = latest.max_fy
+                LEFT JOIN (
+                    SELECT federal_provider_number, SUM(amount) as total_rpt
+                    FROM related_party_transactions WHERE amount IS NOT NULL
+                    GROUP BY federal_provider_number
+                ) rpt_sum ON h.federal_provider_number = rpt_sum.federal_provider_number
+                WHERE h.total_revenue > 100000 AND h.federal_provider_number IS NOT NULL
+                ORDER BY h.management_fees DESC
+                LIMIT 100
+            """)
+
+            if not comparison.empty:
+                st.dataframe(comparison, use_container_width=True, hide_index=True)
+
+            # Expense breakdown by owner type
+            st.subheader("Expense Breakdown by Owner Type")
+            expense_df = run_query("""
+                SELECT
+                    h.owner_type,
+                    COUNT(*) as facilities,
+                    AVG(h.total_revenue) as avg_revenue,
+                    AVG(h.labor_expenses) as avg_labor,
+                    AVG(h.management_fees) as avg_mgmt_fees,
+                    AVG(h.lease_rent_expenses) as avg_rent,
+                    AVG(h.related_party_expenses) as avg_rpt,
+                    AVG(h.net_income) as avg_net_income
+                FROM ca_hcai_financials h
+                WHERE h.owner_type IS NOT NULL AND h.total_revenue > 100000
+                GROUP BY h.owner_type
+                ORDER BY avg_revenue DESC
+            """)
+
+            if not expense_df.empty:
+                fig = px.bar(expense_df, x="owner_type",
+                             y=["avg_labor", "avg_mgmt_fees", "avg_rent", "avg_rpt"],
+                             barmode="stack",
+                             title="Average Expense Components by Owner Type",
+                             labels={"owner_type": "Owner Type", "value": "Amount ($)"})
+                fig.update_layout(template="plotly_dark", paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
+                st.plotly_chart(fig, use_container_width=True)
+
+                st.dataframe(expense_df, use_container_width=True, hide_index=True)
+
+    except Exception as e:
+        st.warning(f"Error loading CA HCAI data: {e}")
 
 
 elif page == "Chain Report Cards":

@@ -1407,7 +1407,7 @@ st.markdown(
     "<div style='text-align: center; color: #636E72; padding: 1rem;'>"
     "Built by <b>Nathan Goldberg</b> · "
     "<a href='mailto:nathanmauricegoldberg@gmail.com'>nathanmauricegoldberg@gmail.com</a> · "
-    "<a href='https://linkedin.com/in/nathanmauricegoldberg'>LinkedIn</a>"
+    "<a href='https://www.linkedin.com/in/nathan-goldberg-62a44522a/'>LinkedIn</a>"
     "</div>",
     unsafe_allow_html=True,
 )

@@ -98,7 +98,7 @@ def main():
     st.markdown(
         "Built by **Nathan Goldberg** · "
         "[Email](mailto:nathanmauricegoldberg@gmail.com) · "
-        "[LinkedIn](https://linkedin.com/in/nathanmauricegoldberg)"
+        "[LinkedIn](https://www.linkedin.com/in/nathan-goldberg-62a44522a/)"
     )
 
 

@@ -112,7 +112,7 @@ st.sidebar.markdown("---")
 st.sidebar.markdown(
     "Built by **Nathan Goldberg**  \n"
     "[Email](mailto:nathanmauricegoldberg@gmail.com) · "
-    "[LinkedIn](https://linkedin.com/in/nathanmauricegoldberg)"
+    "[LinkedIn](https://www.linkedin.com/in/nathan-goldberg-62a44522a/)"
 )
 
 # --- Load data ---
