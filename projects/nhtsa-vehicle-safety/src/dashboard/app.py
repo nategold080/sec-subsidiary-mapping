@@ -10,6 +10,33 @@ import streamlit as st
 
 DB_PATH = Path(__file__).parent.parent.parent / "data" / "nhtsa_safety.db"
 
+_NO_DATA_MSG = "No data loaded yet. Run the pipeline first: `python -m src.cli pipeline`"
+
+
+def _table_exists(conn, name):
+    try:
+        r = conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name=?", (name,)
+        ).fetchone()
+        return r is not None
+    except Exception:
+        return False
+
+
+def _safe_query(sql, conn, params=()):
+    try:
+        return pd.read_sql_query(sql, conn, params=params if params else None)
+    except Exception:
+        return pd.DataFrame()
+
+
+def _safe_fetchone(conn, sql, params=(), default=0):
+    try:
+        row = conn.execute(sql, params).fetchone()
+        return row[0] if row else default
+    except Exception:
+        return default
+
 
 @st.cache_resource
 def get_conn():
@@ -81,15 +108,19 @@ def show_overview(conn):
     """Overview dashboard with KPI cards."""
     st.header("Overview")
 
+    if not _table_exists(conn, "complaints"):
+        st.warning(_NO_DATA_MSG)
+        return
+
     # KPI cards
-    complaint_count = conn.execute("SELECT COUNT(*) FROM complaints").fetchone()[0]
-    recall_count = conn.execute("SELECT COUNT(*) FROM recalls").fetchone()[0]
-    inv_count = conn.execute("SELECT COUNT(*) FROM investigations").fetchone()[0]
-    link_count = conn.execute("SELECT COUNT(*) FROM cross_links").fetchone()[0]
-    crash_count = conn.execute("SELECT COUNT(*) FROM complaints WHERE crash = 1").fetchone()[0]
-    death_count = conn.execute("SELECT COALESCE(SUM(num_deaths), 0) FROM complaints").fetchone()[0]
-    injury_count = conn.execute("SELECT COALESCE(SUM(num_injuries), 0) FROM complaints").fetchone()[0]
-    fire_count = conn.execute("SELECT COUNT(*) FROM complaints WHERE fire = 1").fetchone()[0]
+    complaint_count = _safe_fetchone(conn, "SELECT COUNT(*) FROM complaints")
+    recall_count = _safe_fetchone(conn, "SELECT COUNT(*) FROM recalls")
+    inv_count = _safe_fetchone(conn, "SELECT COUNT(*) FROM investigations")
+    link_count = _safe_fetchone(conn, "SELECT COUNT(*) FROM cross_links")
+    crash_count = _safe_fetchone(conn, "SELECT COUNT(*) FROM complaints WHERE crash = 1")
+    death_count = _safe_fetchone(conn, "SELECT COALESCE(SUM(num_deaths), 0) FROM complaints")
+    injury_count = _safe_fetchone(conn, "SELECT COALESCE(SUM(num_injuries), 0) FROM complaints")
+    fire_count = _safe_fetchone(conn, "SELECT COUNT(*) FROM complaints WHERE fire = 1")
 
     c1, c2, c3, c4 = st.columns(4)
     c1.metric("Complaints", f"{complaint_count:,}")
@@ -108,7 +139,7 @@ def show_overview(conn):
 
     with col1:
         st.subheader("Top Makes by Complaints")
-        df = pd.read_sql_query("""
+        df = _safe_query("""
             SELECT make, COUNT(*) as complaints,
                    SUM(crash) as crashes, SUM(fire) as fires,
                    SUM(num_deaths) as deaths
@@ -124,7 +155,7 @@ def show_overview(conn):
 
     with col2:
         st.subheader("Top Components")
-        df = pd.read_sql_query("""
+        df = _safe_query("""
             SELECT components, COUNT(*) as cnt
             FROM complaints WHERE components != ''
             GROUP BY components ORDER BY cnt DESC LIMIT 15
@@ -140,11 +171,16 @@ def show_complaints(conn):
     """Complaint explorer with search and filter."""
     st.header("Complaint Explorer")
 
+    if not _table_exists(conn, "complaints"):
+        st.warning(_NO_DATA_MSG)
+        return
+
     col1, col2, col3 = st.columns(3)
     with col1:
-        makes = pd.read_sql_query(
+        makes = _safe_query(
             "SELECT DISTINCT make FROM complaints ORDER BY make", conn
-        )["make"].tolist()
+        )
+        makes = makes["make"].tolist() if not makes.empty else []
         selected_make = st.selectbox("Make", ["All"] + makes)
     with col2:
         if selected_make != "All":
@@ -189,6 +225,10 @@ def show_recalls(conn):
     """Recall tracker."""
     st.header("Recall Tracker")
 
+    if not _table_exists(conn, "recalls"):
+        st.warning(_NO_DATA_MSG)
+        return
+
     df = pd.read_sql_query("""
         SELECT campaign_number, manufacturer, make, model, model_year,
                report_received_date, component, summary, consequence,
@@ -214,6 +254,10 @@ def show_recalls(conn):
 def show_investigations(conn):
     """Investigation monitor."""
     st.header("Investigation Monitor")
+
+    if not _table_exists(conn, "investigations"):
+        st.warning(_NO_DATA_MSG)
+        return
 
     df = pd.read_sql_query("""
         SELECT investigation_number, make, model, model_year_start, model_year_end,
@@ -250,9 +294,14 @@ def show_vehicle_deep_dive(conn):
     """Deep dive into a specific vehicle."""
     st.header("Vehicle Deep Dive")
 
-    makes = pd.read_sql_query(
+    if not _table_exists(conn, "complaints"):
+        st.warning(_NO_DATA_MSG)
+        return
+
+    makes_df = _safe_query(
         "SELECT DISTINCT make FROM complaints ORDER BY make", conn
-    )["make"].tolist()
+    )
+    makes = makes_df["make"].tolist() if not makes_df.empty else []
     selected_make = st.selectbox("Select Make", makes if makes else ["No data"])
 
     if selected_make and selected_make != "No data":
@@ -309,6 +358,10 @@ def show_trends(conn):
     """Safety trends over time."""
     st.header("Safety Trends")
 
+    if not _table_exists(conn, "complaints"):
+        st.warning(_NO_DATA_MSG)
+        return
+
     df = pd.read_sql_query("""
         SELECT substr(date_complaint_filed, 1, 7) as month,
                COUNT(*) as complaints,
@@ -347,6 +400,10 @@ def show_components(conn):
     """Component analysis."""
     st.header("Component Analysis")
 
+    if not _table_exists(conn, "complaints"):
+        st.warning(_NO_DATA_MSG)
+        return
+
     df = pd.read_sql_query("""
         SELECT components, COUNT(*) as complaints,
                SUM(crash) as crashes, SUM(fire) as fires,
@@ -382,6 +439,10 @@ def show_investigation_outcomes(conn):
     """Investigation outcomes and docket analysis."""
     st.header("Investigation Outcomes")
 
+    if not _table_exists(conn, "investigations"):
+        st.warning(_NO_DATA_MSG)
+        return
+
     # Check if docket tables have data
     try:
         docket_count = conn.execute("SELECT COUNT(*) FROM investigation_dockets").fetchone()[0]
@@ -403,7 +464,7 @@ def show_investigation_outcomes(conn):
     col1, col2 = st.columns(2)
 
     with col1:
-        status_df = pd.read_sql_query("""
+        status_df = _safe_query("""
             SELECT status, COUNT(*) as count
             FROM investigations WHERE status != ''
             GROUP BY status
@@ -415,7 +476,7 @@ def show_investigation_outcomes(conn):
             st.plotly_chart(fig, use_container_width=True)
 
     with col2:
-        type_df = pd.read_sql_query("""
+        type_df = _safe_query("""
             SELECT investigation_type, COUNT(*) as count
             FROM investigations WHERE investigation_type != ''
             GROUP BY investigation_type ORDER BY count DESC
@@ -429,7 +490,7 @@ def show_investigation_outcomes(conn):
 
     # Investigations that led to recalls (via cross-links)
     st.subheader("Investigation-Recall Linkage")
-    linked_df = pd.read_sql_query("""
+    linked_df = _safe_query("""
         SELECT i.make, COUNT(DISTINCT i.investigation_number) as investigations,
                COUNT(DISTINCT cl.source_id) as linked_to_recalls
         FROM investigations i
@@ -452,7 +513,7 @@ def show_investigation_outcomes(conn):
 
     # Duration analysis
     st.subheader("Investigation Duration Analysis")
-    duration_df = pd.read_sql_query("""
+    duration_df = _safe_query("""
         SELECT make,
                AVG(julianday(close_date) - julianday(open_date)) as avg_days,
                COUNT(*) as closed_count
@@ -792,32 +853,32 @@ def show_quality(conn):
     """Data quality dashboard."""
     st.header("Data Quality")
 
-    tables_to_check = [
-        ("complaints", "quality_score"),
-        ("recalls", "quality_score"),
-        ("investigations", "quality_score"),
-    ]
-    # Add enrichment tables if they exist
-    try:
-        conn.execute("SELECT 1 FROM manufacturer_profiles LIMIT 1")
+    if not _table_exists(conn, "complaints") and not _table_exists(conn, "recalls") and not _table_exists(conn, "investigations"):
+        st.warning(_NO_DATA_MSG)
+        return
+
+    tables_to_check = []
+    for tbl, col in [("complaints", "quality_score"), ("recalls", "quality_score"), ("investigations", "quality_score")]:
+        if _table_exists(conn, tbl):
+            tables_to_check.append((tbl, col))
+    if _table_exists(conn, "manufacturer_profiles"):
         tables_to_check.append(("manufacturer_profiles", "quality_score"))
-    except Exception:
-        pass
-    try:
-        conn.execute("SELECT 1 FROM vehicle_attributes LIMIT 1")
+    if _table_exists(conn, "vehicle_attributes"):
         tables_to_check.append(("vehicle_attributes", "quality_score"))
-    except Exception:
-        pass
+
+    if not tables_to_check:
+        st.warning(_NO_DATA_MSG)
+        return
 
     for table_name, score_col in tables_to_check:
-        total = conn.execute(f"SELECT COUNT(*) FROM {table_name}").fetchone()[0]
-        scored = conn.execute(f"SELECT COUNT(*) FROM {table_name} WHERE {score_col} > 0").fetchone()[0]
-        above_threshold = conn.execute(
-            f"SELECT COUNT(*) FROM {table_name} WHERE {score_col} >= 0.4"
-        ).fetchone()[0]
-        avg_score = conn.execute(
-            f"SELECT AVG({score_col}) FROM {table_name} WHERE {score_col} > 0"
-        ).fetchone()[0] or 0
+        total = _safe_fetchone(conn, f"SELECT COUNT(*) FROM {table_name}")
+        scored = _safe_fetchone(conn, f"SELECT COUNT(*) FROM {table_name} WHERE {score_col} > 0")
+        above_threshold = _safe_fetchone(
+            conn, f"SELECT COUNT(*) FROM {table_name} WHERE {score_col} >= 0.4"
+        )
+        avg_score = _safe_fetchone(
+            conn, f"SELECT AVG({score_col}) FROM {table_name} WHERE {score_col} > 0", default=0
+        )
 
         st.subheader(f"{table_name.title()}")
         c1, c2, c3 = st.columns(3)
@@ -827,7 +888,7 @@ def show_quality(conn):
 
     # Cross-link coverage
     st.subheader("Cross-Link Coverage")
-    link_types = pd.read_sql_query("""
+    link_types = _safe_query("""
         SELECT source_type || ' → ' || target_type as link_type,
                link_method, COUNT(*) as count,
                ROUND(AVG(confidence), 3) as avg_confidence

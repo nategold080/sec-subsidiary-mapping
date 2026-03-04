@@ -11,17 +11,48 @@ import pandas as pd
 DB_PATH = Path(__file__).parent.parent.parent / "data" / "cpsc_product_safety.db"
 
 
+def _table_exists(conn, name):
+    try:
+        r = conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name=?", (name,)
+        ).fetchone()
+        return r is not None
+    except Exception:
+        return False
+
+
+def _safe_query(sql, conn, params=()):
+    try:
+        return pd.read_sql_query(sql, conn, params=params if params else None)
+    except Exception:
+        return pd.DataFrame()
+
+
+def _safe_fetchone(conn, sql, params=(), default=0):
+    try:
+        row = conn.execute(sql, params).fetchone()
+        return row[0] if row else default
+    except Exception:
+        return default
+
+
 @st.cache_resource
 def get_db():
     conn = sqlite3.connect(str(DB_PATH), check_same_thread=False)
-    conn.execute("PRAGMA journal_mode=WAL")
+    try:
+        conn.execute("PRAGMA journal_mode=WAL")
+    except Exception:
+        pass
     return conn
 
 
 @st.cache_data(ttl=3600)
 def run_query(query, params=None):
     conn = get_db()
-    return pd.read_sql_query(query, conn, params=params or [])
+    try:
+        return pd.read_sql_query(query, conn, params=params or [])
+    except Exception:
+        return pd.DataFrame()
 
 
 def main():
@@ -70,6 +101,13 @@ def main():
 
 def render_overview():
     st.header("Overview")
+
+    conn = get_db()
+    required = ["recalls", "incidents", "neiss_injuries", "penalties", "import_violations",
+                "manufacturer_profiles", "cross_links"]
+    if not all(_table_exists(conn, t) for t in required):
+        st.warning("No data loaded. Run the pipeline first: `python -m src.cli pipeline`")
+        return
 
     # KPI cards
     stats = run_query("""
@@ -153,6 +191,11 @@ def render_overview():
 def render_product_injury_analysis():
     st.header("Product Injury Analysis")
     st.caption("NEISS injury data resolved by product category — 2M+ emergency room records")
+
+    conn = get_db()
+    if not _table_exists(conn, "neiss_injuries") or not _table_exists(conn, "neiss_product_codes"):
+        st.warning("No data loaded. Run the pipeline first: `python -m src.cli pipeline`")
+        return
 
     # KPI row
     kpi = run_query("""
@@ -297,6 +340,11 @@ def render_hazard_validation():
     st.header("Hazard Validation")
     st.caption("Do NEISS injury diagnoses match the hazard types stated in recalls?")
 
+    conn = get_db()
+    if not _table_exists(conn, "hazard_validation_results"):
+        st.info("No hazard validation data. Run `python3 -m src.cli crosslink` to generate.")
+        return
+
     # KPI row
     kpi = run_query("""
         SELECT
@@ -388,6 +436,12 @@ def render_hazard_validation():
 def render_cross_agency():
     st.header("Cross-Agency Analysis")
     st.caption("Manufacturers appearing in BOTH CPSC and FDA enforcement systems")
+
+    conn = get_db()
+    fda_tables = ["fda_adverse_events", "fda_device_recalls", "cpsc_fda_manufacturer_links"]
+    if not all(_table_exists(conn, t) for t in fda_tables):
+        st.info("No FDA data loaded yet. Run `python3 -m src.cli scrape-fda` to import FDA data.")
+        return
 
     # KPI row
     kpi = run_query("""
@@ -488,6 +542,12 @@ def render_cross_agency():
 
 def render_search():
     st.header("Manufacturer Search")
+
+    conn = get_db()
+    if not _table_exists(conn, "manufacturer_profiles"):
+        st.warning("No data loaded. Run the pipeline first: `python -m src.cli pipeline`")
+        return
+
     query = st.text_input("Search manufacturer name", placeholder="e.g., Samsung, IKEA, Fisher-Price")
 
     if query:
@@ -526,6 +586,11 @@ def render_search():
 def render_top_manufacturers():
     st.header("Top Manufacturers")
 
+    conn = get_db()
+    if not _table_exists(conn, "manufacturer_profiles"):
+        st.warning("No data loaded. Run the pipeline first: `python -m src.cli pipeline`")
+        return
+
     sort_by = st.selectbox("Sort by", ["Recalls", "Incidents", "Fines", "Import Violations", "Compliance Score"])
     sort_map = {
         "Recalls": "total_recalls DESC",
@@ -553,6 +618,11 @@ def render_top_manufacturers():
 
 def render_risk_analysis():
     st.header("Risk Analysis")
+
+    conn = get_db()
+    if not _table_exists(conn, "manufacturer_profiles"):
+        st.warning("No data loaded. Run the pipeline first: `python -m src.cli pipeline`")
+        return
 
     # Compliance score distribution
     col1, col2 = st.columns(2)
@@ -600,6 +670,11 @@ def render_risk_analysis():
 def render_recalls():
     st.header("Recall Campaigns")
 
+    conn = get_db()
+    if not _table_exists(conn, "recalls"):
+        st.warning("No data loaded. Run the pipeline first: `python -m src.cli pipeline`")
+        return
+
     col1, col2 = st.columns(2)
     with col1:
         st.subheader("Recalls by Hazard Type")
@@ -639,6 +714,11 @@ def render_recalls():
 
 def render_neiss():
     st.header("NEISS Emergency Room Injuries")
+
+    conn = get_db()
+    if not _table_exists(conn, "neiss_injuries"):
+        st.warning("No data loaded. Run the pipeline first: `python -m src.cli pipeline`")
+        return
 
     col1, col2 = st.columns(2)
     with col1:
@@ -708,6 +788,11 @@ def render_neiss():
 def render_violations():
     st.header("Import Violations")
 
+    conn = get_db()
+    if not _table_exists(conn, "import_violations"):
+        st.warning("No data loaded. Run the pipeline first: `python -m src.cli pipeline`")
+        return
+
     col1, col2 = st.columns(2)
     with col1:
         st.subheader("Violations by Country")
@@ -760,6 +845,16 @@ def render_violations():
 
 def render_data_explorer():
     st.header("Data Explorer")
+
+    conn = get_db()
+    available_tables = [
+        t for t in ["recalls", "incidents", "penalties", "import_violations",
+                     "manufacturer_profiles", "neiss_injuries", "cross_links"]
+        if _table_exists(conn, t)
+    ]
+    if not available_tables:
+        st.warning("No data loaded. Run the pipeline first: `python -m src.cli pipeline`")
+        return
 
     table = st.selectbox("Select table", [
         "recalls", "incidents", "penalties", "import_violations",

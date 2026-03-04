@@ -10,6 +10,29 @@ import streamlit as st
 
 DB_PATH = Path(__file__).parent.parent.parent / "data" / "h1b_compliance.db"
 
+_NO_DATA_MSG = "No data loaded yet. Run the pipeline first: `python -m src.cli pipeline`"
+
+
+def _table_exists(conn, name):
+    try:
+        r = conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name=?", (name,)
+        ).fetchone()
+        return r is not None
+    except Exception:
+        return False
+
+
+def _safe_fetchone(conn, sql, params=(), default=0):
+    try:
+        row = conn.execute(sql, params).fetchone()
+        if row is None:
+            return default
+        val = row[0] if isinstance(row, (tuple, list)) else row[row.keys()[0]]
+        return val if val is not None else default
+    except Exception:
+        return default
+
 
 @st.cache_resource
 def get_db():
@@ -21,13 +44,16 @@ def get_db():
 @st.cache_data(ttl=3600)
 def query(sql, params=None):
     conn = get_db()
-    if params:
-        rows = conn.execute(sql, params).fetchall()
-    else:
-        rows = conn.execute(sql).fetchall()
-    if rows:
-        cols = rows[0].keys()
-        return pd.DataFrame([dict(r) for r in rows], columns=cols)
+    try:
+        if params:
+            rows = conn.execute(sql, params).fetchall()
+        else:
+            rows = conn.execute(sql).fetchall()
+        if rows:
+            cols = rows[0].keys()
+            return pd.DataFrame([dict(r) for r in rows], columns=cols)
+    except Exception:
+        pass
     return pd.DataFrame()
 
 
@@ -79,21 +105,20 @@ def main():
 def _overview_tab():
     conn = get_db()
 
+    if not _table_exists(conn, "lca_applications"):
+        st.warning(_NO_DATA_MSG)
+        return
+
     # KPIs
     stats = {}
     for table in ["lca_applications", "uscis_employers", "whd_violations",
                    "debarments", "employer_profiles", "cross_links"]:
-        row = conn.execute(f"SELECT COUNT(*) as n FROM {table}").fetchone()
-        stats[table] = row["n"]
+        stats[table] = _safe_fetchone(conn, f"SELECT COUNT(*) FROM {table}")
 
-    row = conn.execute("SELECT COUNT(DISTINCT employer_name) as n FROM lca_applications").fetchone()
-    stats["unique_employers"] = row["n"]
-    row = conn.execute("SELECT COUNT(DISTINCT fiscal_year) as n FROM lca_applications WHERE fiscal_year IS NOT NULL").fetchone()
-    stats["fiscal_years"] = row["n"]
-    row = conn.execute("SELECT AVG(annualized_wage) as v FROM lca_applications WHERE annualized_wage > 0").fetchone()
-    stats["avg_wage"] = row["v"] or 0
-    row = conn.execute("SELECT SUM(total_workers) as v FROM lca_applications").fetchone()
-    stats["total_workers"] = row["v"] or 0
+    stats["unique_employers"] = _safe_fetchone(conn, "SELECT COUNT(DISTINCT employer_name) FROM lca_applications")
+    stats["fiscal_years"] = _safe_fetchone(conn, "SELECT COUNT(DISTINCT fiscal_year) FROM lca_applications WHERE fiscal_year IS NOT NULL")
+    stats["avg_wage"] = _safe_fetchone(conn, "SELECT AVG(annualized_wage) FROM lca_applications WHERE annualized_wage > 0")
+    stats["total_workers"] = _safe_fetchone(conn, "SELECT COALESCE(SUM(total_workers), 0) FROM lca_applications")
 
     c1, c2, c3, c4 = st.columns(4)
     c1.metric("LCA Applications", f"{stats['lca_applications']:,}")
@@ -185,6 +210,12 @@ def _overview_tab():
 
 def _search_tab():
     st.subheader("Employer Search")
+
+    conn = get_db()
+    if not _table_exists(conn, "employer_profiles"):
+        st.warning(_NO_DATA_MSG)
+        return
+
     search = st.text_input("Search employer name:", placeholder="e.g. Google, Microsoft, Infosys")
 
     if search and len(search) >= 2:
@@ -229,6 +260,11 @@ def _search_tab():
 def _top_employers_tab():
     st.subheader("Top H-1B Employers")
 
+    conn = get_db()
+    if not _table_exists(conn, "employer_profiles"):
+        st.warning(_NO_DATA_MSG)
+        return
+
     col1, col2, col3 = st.columns(3)
     with col1:
         min_lcas = st.number_input("Minimum LCAs", value=10, min_value=1)
@@ -237,11 +273,13 @@ def _top_employers_tab():
                         "compliance_score", "approval_rate", "avg_wage_ratio"]
         sort_by = st.selectbox("Sort by", SORT_OPTIONS)
     with col3:
-        conn = get_db()
-        sector_rows = conn.execute(
-            "SELECT DISTINCT industry_sector FROM employer_profiles WHERE industry_sector IS NOT NULL ORDER BY industry_sector"
-        ).fetchall()
-        sector_options = ["All Sectors"] + [r["industry_sector"] for r in sector_rows]
+        try:
+            sector_rows = conn.execute(
+                "SELECT DISTINCT industry_sector FROM employer_profiles WHERE industry_sector IS NOT NULL ORDER BY industry_sector"
+            ).fetchall()
+            sector_options = ["All Sectors"] + [r["industry_sector"] for r in sector_rows]
+        except Exception:
+            sector_options = ["All Sectors"]
         sector_filter = st.selectbox("Industry Sector", sector_options)
 
     # Validate sort column against whitelist
@@ -277,6 +315,11 @@ def _top_employers_tab():
 
 def _compliance_tab():
     st.subheader("Compliance Analysis")
+
+    conn = get_db()
+    if not _table_exists(conn, "employer_profiles"):
+        st.warning(_NO_DATA_MSG)
+        return
 
     col1, col2 = st.columns(2)
 
@@ -338,18 +381,15 @@ def _compliance_tab():
 def _industry_tab():
     st.subheader("Industry Sector Analysis")
 
-    # KPI row
     conn = get_db()
-    row = conn.execute(
-        "SELECT COUNT(DISTINCT industry_sector) as n FROM employer_profiles WHERE industry_sector IS NOT NULL"
-    ).fetchone()
-    total_sectors = row["n"] if row else 0
-    row = conn.execute(
-        "SELECT COUNT(*) as n FROM employer_profiles WHERE industry_sector IS NOT NULL"
-    ).fetchone()
-    classified = row["n"] if row else 0
-    row = conn.execute("SELECT COUNT(*) as n FROM employer_profiles").fetchone()
-    total_profiles = row["n"] if row else 0
+    if not _table_exists(conn, "employer_profiles"):
+        st.warning(_NO_DATA_MSG)
+        return
+
+    # KPI row
+    total_sectors = _safe_fetchone(conn, "SELECT COUNT(DISTINCT industry_sector) FROM employer_profiles WHERE industry_sector IS NOT NULL")
+    classified = _safe_fetchone(conn, "SELECT COUNT(*) FROM employer_profiles WHERE industry_sector IS NOT NULL")
+    total_profiles = _safe_fetchone(conn, "SELECT COUNT(*) FROM employer_profiles")
 
     c1, c2, c3 = st.columns(3)
     c1.metric("Industry Sectors", f"{total_sectors}")
@@ -495,12 +535,13 @@ def _financial_tab():
     st.subheader("Financial Context — Public Company H-1B Analysis")
 
     conn = get_db()
-    row = conn.execute("SELECT COUNT(*) as n FROM public_companies").fetchone()
-    n_companies = row["n"] if row else 0
-    row = conn.execute("SELECT COUNT(*) as n FROM employer_profiles WHERE is_public = 1").fetchone()
-    n_public = row["n"] if row else 0
-    row = conn.execute("SELECT COUNT(*) as n FROM company_financials").fetchone()
-    n_fin = row["n"] if row else 0
+    if not _table_exists(conn, "employer_profiles"):
+        st.warning(_NO_DATA_MSG)
+        return
+
+    n_companies = _safe_fetchone(conn, "SELECT COUNT(*) FROM public_companies") if _table_exists(conn, "public_companies") else 0
+    n_public = _safe_fetchone(conn, "SELECT COUNT(*) FROM employer_profiles WHERE is_public = 1")
+    n_fin = _safe_fetchone(conn, "SELECT COUNT(*) FROM company_financials") if _table_exists(conn, "company_financials") else 0
 
     c1, c2, c3 = st.columns(3)
     c1.metric("Public Companies Matched", f"{n_companies:,}")
@@ -630,6 +671,11 @@ def _financial_tab():
 def _geographic_tab():
     st.subheader("Geographic Analysis")
 
+    conn = get_db()
+    if not _table_exists(conn, "lca_applications"):
+        st.warning(_NO_DATA_MSG)
+        return
+
     col1, col2 = st.columns(2)
 
     with col1:
@@ -688,6 +734,11 @@ def _geographic_tab():
 
 def _uscis_tab():
     st.subheader("USCIS Petition Outcomes")
+
+    conn = get_db()
+    if not _table_exists(conn, "employer_profiles") and not _table_exists(conn, "uscis_employers"):
+        st.warning(_NO_DATA_MSG)
+        return
 
     col1, col2 = st.columns(2)
 
@@ -749,6 +800,11 @@ def _uscis_tab():
 def _debarments_tab():
     st.subheader("Debarred & Willful Violator Employers")
 
+    conn = get_db()
+    if not _table_exists(conn, "debarments"):
+        st.warning(_NO_DATA_MSG)
+        return
+
     df = query("""
         SELECT employer_name, employer_city, employer_state, program,
                debar_start_date, debar_end_date, violation_type, source
@@ -778,18 +834,24 @@ def _debarments_tab():
 def _explorer_tab():
     st.subheader("Data Explorer")
 
+    conn = get_db()
     ALLOWED_TABLES = ["employer_profiles", "lca_applications", "uscis_employers",
                        "debarments", "cross_links", "public_companies",
                        "company_financials", "employer_sec_links", "naics_codes"]
-    table = st.selectbox("Table", ALLOWED_TABLES)
+    # Filter to only tables that actually exist
+    available_tables = [t for t in ALLOWED_TABLES if _table_exists(conn, t)]
+    if not available_tables:
+        st.warning(_NO_DATA_MSG)
+        return
+
+    table = st.selectbox("Table", available_tables)
 
     # Validate table name against whitelist
     if table not in ALLOWED_TABLES:
         st.error("Invalid table selection")
         return
 
-    conn = get_db()
-    count = conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
+    count = _safe_fetchone(conn, f"SELECT COUNT(*) FROM {table}")
     st.write(f"**{count:,}** total records")
 
     search = st.text_input("Filter (employer name contains):", key="explorer_search")

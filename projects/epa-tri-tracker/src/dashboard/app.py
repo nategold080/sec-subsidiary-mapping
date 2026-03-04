@@ -29,22 +29,32 @@ st.set_page_config(
 def get_db():
     conn = sqlite3.connect(str(DB_PATH), check_same_thread=False)
     conn.row_factory = sqlite3.Row
+    try:
+        conn.execute("PRAGMA journal_mode=WAL")
+    except Exception:
+        pass
     return conn
 
 
 @st.cache_data(ttl=300)
 def query_df(sql, params=None):
     conn = get_db()
-    return pd.read_sql_query(sql, conn, params=params or [])
+    try:
+        return pd.read_sql_query(sql, conn, params=params or [])
+    except Exception:
+        return pd.DataFrame()
 
 
 def _table_exists(name: str) -> bool:
     """Check if a table exists in the database."""
-    conn = get_db()
-    row = conn.execute(
-        "SELECT COUNT(*) as cnt FROM sqlite_master WHERE type='table' AND name=?", (name,)
-    ).fetchone()
-    return row[0] > 0
+    try:
+        conn = get_db()
+        row = conn.execute(
+            "SELECT COUNT(*) as cnt FROM sqlite_master WHERE type='table' AND name=?", (name,)
+        ).fetchone()
+        return row[0] > 0
+    except Exception:
+        return False
 
 
 def main():
@@ -111,6 +121,10 @@ def render_overview():
     st.title("National Overview")
     st.markdown("EPA Toxic Release Inventory cross-linked with enforcement, health, demographics, and environmental justice data.")
 
+    if not _table_exists("tri_facilities") or not _table_exists("tri_releases"):
+        st.warning("No data loaded. Run the pipeline first: `python -m src.cli pipeline`")
+        return
+
     stats_df = query_df("""
         SELECT
             (SELECT COUNT(*) FROM tri_facilities) as total_facilities,
@@ -119,7 +133,6 @@ def render_overview():
             (SELECT COALESCE(SUM(total_releases_lbs), 0) FROM tri_releases) as total_lbs,
             (SELECT COUNT(*) FROM tri_releases) as total_releases,
             (SELECT COUNT(*) FROM tri_releases WHERE carcinogen_flag = 'YES') as carcinogen_releases,
-            (SELECT COUNT(*) FROM county_health) as health_records,
             (SELECT AVG(quality_score) FROM tri_facilities WHERE quality_score IS NOT NULL) as avg_quality
     """)
 
@@ -136,7 +149,7 @@ def render_overview():
     c4.metric("Total Releases (lbs)", f"{(stats['total_lbs'] or 0):,.0f}")
 
     # Enforcement KPIs
-    if _table_exists("enforcement_actions"):
+    if _table_exists("enforcement_actions") and _table_exists("facility_inspections") and _table_exists("tri_frs_links"):
         enf_stats = query_df("""
             SELECT
                 (SELECT COUNT(*) FROM enforcement_actions) as enf_count,
@@ -197,6 +210,10 @@ def render_overview():
 
 def render_facility_explorer():
     st.title("Facility Explorer")
+
+    if not _table_exists("tri_facilities"):
+        st.warning("No data loaded. Run the pipeline first: `python -m src.cli pipeline`")
+        return
 
     col1, col2, col3 = st.columns(3)
     with col1:
@@ -323,6 +340,10 @@ def render_community_impact():
     st.title("Community Impact")
     st.markdown("Explore the relationship between TRI facilities and community health.")
 
+    if not _table_exists("tri_facilities"):
+        st.warning("No data loaded. Run the pipeline first: `python -m src.cli pipeline`")
+        return
+
     counties = query_df("""
         SELECT DISTINCT f.fips_county, f.county || ', ' || f.state as label
         FROM tri_facilities f
@@ -447,7 +468,8 @@ def render_enforcement():
     st.title("Enforcement Dashboard")
     st.markdown("EPA enforcement actions, penalties, and compliance across TRI facilities.")
 
-    if not _table_exists("enforcement_actions"):
+    enf_tables = ["enforcement_actions", "facility_inspections", "tri_frs_links"]
+    if not all(_table_exists(t) for t in enf_tables):
         st.info("No enforcement data available. Run `python -m src.cli echo` to download.")
         return
 
@@ -594,6 +616,10 @@ def render_compliance():
 def render_chemical_analysis():
     st.title("Chemical Analysis")
 
+    if not _table_exists("tri_releases"):
+        st.warning("No data loaded. Run the pipeline first: `python -m src.cli pipeline`")
+        return
+
     stats_df = query_df("""
         SELECT
             COUNT(DISTINCT chemical_name) as unique_chemicals,
@@ -674,6 +700,10 @@ def render_chemical_analysis():
 
 def render_industry_analysis():
     st.title("Industry Sector Analysis")
+
+    if not _table_exists("tri_facilities"):
+        st.warning("No data loaded. Run the pipeline first: `python -m src.cli pipeline`")
+        return
 
     ind_df = query_df("""
         SELECT COALESCE(f.industry_sector, 'Unknown') as sector,
@@ -796,7 +826,7 @@ def render_superfund():
     st.title("Superfund/NPL Site Proximity")
     st.markdown("TRI facilities near legacy contamination Superfund sites.")
 
-    if not _table_exists("superfund_sites"):
+    if not _table_exists("superfund_sites") or not _table_exists("tri_superfund_proximity"):
         st.info("No Superfund data available. Run `python -m src.cli superfund` to download.")
         return
 
@@ -865,7 +895,8 @@ def render_rmp():
         "worst-case scenarios, and historical accident records."
     )
 
-    if not _table_exists("rmp_facilities"):
+    rmp_tables = ["rmp_facilities", "rmp_chemicals", "rmp_accidents", "tri_rmp_links"]
+    if not all(_table_exists(t) for t in rmp_tables):
         st.info("No RMP data available. Run `python -m src.cli rmp` to download.")
         return
 
@@ -1107,6 +1138,10 @@ def render_map():
     st.title("Geographic Map")
     st.markdown("Facility locations sized by release volume.")
 
+    if not _table_exists("tri_facilities"):
+        st.warning("No data loaded. Run the pipeline first: `python -m src.cli pipeline`")
+        return
+
     states = query_df("SELECT DISTINCT state FROM tri_facilities ORDER BY state")
     state_options = states["state"].tolist() if not states.empty else []
     selected = st.multiselect("Filter states", state_options, default=[])
@@ -1164,6 +1199,10 @@ def render_map():
 
 def render_trends():
     st.title("Year-over-Year Trends")
+
+    if not _table_exists("tri_releases"):
+        st.warning("No data loaded. Run the pipeline first: `python -m src.cli pipeline`")
+        return
 
     yearly = query_df("""
         SELECT reporting_year as year,
