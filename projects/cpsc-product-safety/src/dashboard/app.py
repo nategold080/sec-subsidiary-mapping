@@ -1,5 +1,6 @@
 """Streamlit dashboard for CPSC Product Safety Tracker."""
 
+import os
 import sqlite3
 from pathlib import Path
 
@@ -11,7 +12,17 @@ import pandas as pd
 _DATA_DIR = Path(__file__).parent.parent.parent / "data"
 _DEPLOY_DB = _DATA_DIR / "cpsc_product_safety_deploy.db"
 _FULL_DB = _DATA_DIR / "cpsc_product_safety.db"
-DB_PATH = _DEPLOY_DB if _DEPLOY_DB.exists() else _FULL_DB
+
+_env_db = os.environ.get("CPSC_DB_PATH")
+if _env_db and Path(_env_db).exists():
+    DB_PATH = Path(_env_db)
+elif _DEPLOY_DB.exists():
+    DB_PATH = _DEPLOY_DB
+elif _FULL_DB.exists():
+    DB_PATH = _FULL_DB
+else:
+    _db_files = list(_DATA_DIR.glob("*.db")) if _DATA_DIR.exists() else []
+    DB_PATH = _db_files[0] if _db_files else _FULL_DB
 
 
 def _table_exists(conn, name):
