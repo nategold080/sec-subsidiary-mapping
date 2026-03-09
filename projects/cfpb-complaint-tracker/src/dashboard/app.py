@@ -1,18 +1,17 @@
 """
 Streamlit dashboard for CFPB Consumer Complaint Cross-Linked Analysis.
 
-Seven interactive sections:
-1. National Overview
-2. Institution Explorer
-3. Complaint Analysis
-4. Enforcement Timeline
-5. Geographic Analysis
-6. CRA vs. Complaints
-7. Trends & Patterns
+Eleven interactive sections covering complaints, institutions, enforcement,
+financial health, risk profiles, and fair lending.
+
+Supports two database modes:
+- Full DB (cfpb_tracker.db): raw complaint rows + all enrichment tables
+- Deploy DB (cfpb_tracker_deploy.db): pre-aggregated summaries + enrichment tables
 
 Built by Nathan Goldberg | nathanmauricegoldberg@gmail.com | www.linkedin.com/in/nathan-goldberg-62a44522a/
 """
 
+import os
 import sqlite3
 from pathlib import Path
 
@@ -37,7 +36,13 @@ st.set_page_config(
 
 _DATA_DIR = Path(__file__).parent.parent.parent / "data"
 _DEPLOY_DB = _DATA_DIR / "cfpb_tracker_deploy.db"
-DB_PATH = _DEPLOY_DB if _DEPLOY_DB.exists() else _DATA_DIR / "cfpb_tracker.db"
+_ENV_DB = os.environ.get("CFPB_DB_PATH")
+if _ENV_DB:
+    DB_PATH = Path(_ENV_DB)
+elif _DEPLOY_DB.exists():
+    DB_PATH = _DEPLOY_DB
+else:
+    DB_PATH = _DATA_DIR / "cfpb_tracker.db"
 
 COLOR_PRIMARY = "#0984E3"
 COLOR_BG = "#0E1117"
@@ -233,12 +238,42 @@ page = st.sidebar.radio(
     ],
 )
 
+# ---------------------------------------------------------------------------
+# Data mode detection: raw complaints vs. pre-aggregated summaries
+# ---------------------------------------------------------------------------
+_conn_check = _get_conn()
+HAS_RAW_COMPLAINTS = _table_exists(_conn_check, "cfpb_complaints")
+HAS_SUMMARY_TABLES = _table_exists(_conn_check, "kpi_totals")
+_conn_check.close()
+
+
+def _has_summary(name: str) -> bool:
+    """Check if a pre-aggregated summary table exists."""
+    c = _get_conn()
+    result = _table_exists(c, name)
+    c.close()
+    return result
+
+
 # Sidebar data-freshness indicator
-total_complaints = run_scalar("SELECT COUNT(*) FROM cfpb_complaints") or 0
+if HAS_RAW_COMPLAINTS:
+    total_complaints = run_scalar("SELECT COUNT(*) FROM cfpb_complaints") or 0
+elif HAS_SUMMARY_TABLES:
+    total_complaints = run_scalar("SELECT total_complaints FROM kpi_totals") or 0
+else:
+    total_complaints = 0
+
 total_institutions = run_scalar("SELECT COUNT(*) FROM financial_institutions") or 0
 total_enforcement = run_scalar("SELECT COUNT(*) FROM enforcement_actions") or 0
 total_financials = run_scalar("SELECT COUNT(DISTINCT cert_number) FROM institution_financials") or 0
 total_risk_profiles = run_scalar("SELECT COUNT(*) FROM institution_risk_profiles") or 0
+
+if HAS_SUMMARY_TABLES and not HAS_RAW_COMPLAINTS:
+    total_cross_links_global = run_scalar("SELECT total_cross_links FROM kpi_totals") or 0
+elif HAS_RAW_COMPLAINTS:
+    total_cross_links_global = run_scalar("SELECT COUNT(*) FROM institution_complaints") or 0
+else:
+    total_cross_links_global = 0
 
 st.sidebar.markdown("---")
 st.sidebar.markdown("**Data Summary**")
@@ -249,6 +284,8 @@ if total_financials > 0:
     st.sidebar.markdown(f"w/ Financials: **{fmt_number(total_financials)}**")
 if total_risk_profiles > 0:
     st.sidebar.markdown(f"Risk Profiles: **{fmt_number(total_risk_profiles)}**")
+if total_cross_links_global > 0:
+    st.sidebar.markdown(f"Cross-Links: **{fmt_number(total_cross_links_global)}**")
 
 st.sidebar.markdown("---")
 st.sidebar.markdown(
@@ -269,20 +306,19 @@ if page == "National Overview":
         "and enforcement actions."
     )
 
-    _conn = _get_conn()
-    if not _table_exists(_conn, "cfpb_complaints"):
+    if not HAS_RAW_COMPLAINTS and not HAS_SUMMARY_TABLES:
         st.warning("No data loaded. Run the pipeline first: `python -m src.cli pipeline --full`")
         render_footer()
-        _conn.close()
         st.stop()
-    _conn.close()
 
     # --- KPI Cards ---
-    total_cross_links = run_scalar("SELECT COUNT(*) FROM institution_complaints") or 0
+    total_cross_links = total_cross_links_global
     total_cra = run_scalar("SELECT COUNT(*) FROM cra_ratings") or 0
     total_penalties = run_scalar(
         "SELECT SUM(penalty_amount) FROM enforcement_actions WHERE penalty_amount > 0"
     ) or 0
+    if HAS_SUMMARY_TABLES and total_penalties == 0:
+        total_penalties = run_scalar("SELECT total_penalties FROM kpi_totals") or 0
     avg_quality = run_scalar(
         "SELECT AVG(quality_score) FROM financial_institutions WHERE quality_score > 0"
     )
@@ -300,10 +336,18 @@ if page == "National Overview":
         "Avg Quality Score",
         f"{avg_quality:.2f}" if avg_quality else "N/A",
     )
-    date_range = run_query(
-        "SELECT MIN(date_received) as min_d, MAX(date_received) as max_d "
-        "FROM cfpb_complaints"
-    )
+    if HAS_RAW_COMPLAINTS:
+        date_range = run_query(
+            "SELECT MIN(date_received) as min_d, MAX(date_received) as max_d "
+            "FROM cfpb_complaints"
+        )
+    elif HAS_SUMMARY_TABLES:
+        date_range = run_query(
+            "SELECT earliest_complaint as min_d, latest_complaint as max_d FROM kpi_totals"
+        )
+    else:
+        date_range = []
+
     if date_range and date_range[0]["min_d"]:
         k8.metric(
             "Date Range",
@@ -324,20 +368,34 @@ if page == "National Overview":
         key="overview_time_gran",
     )
 
-    if time_gran == "Yearly":
-        time_data = run_query(
-            "SELECT substr(date_received, 1, 4) AS period, COUNT(*) AS cnt "
-            "FROM cfpb_complaints "
-            "WHERE date_received IS NOT NULL "
-            "GROUP BY period ORDER BY period"
-        )
+    if HAS_RAW_COMPLAINTS:
+        if time_gran == "Yearly":
+            time_data = run_query(
+                "SELECT substr(date_received, 1, 4) AS period, COUNT(*) AS cnt "
+                "FROM cfpb_complaints "
+                "WHERE date_received IS NOT NULL "
+                "GROUP BY period ORDER BY period"
+            )
+        else:
+            time_data = run_query(
+                "SELECT substr(date_received, 1, 7) AS period, COUNT(*) AS cnt "
+                "FROM cfpb_complaints "
+                "WHERE date_received IS NOT NULL "
+                "GROUP BY period ORDER BY period"
+            )
+    elif _has_summary("complaint_monthly_total"):
+        if time_gran == "Yearly":
+            time_data = run_query(
+                "SELECT substr(month, 1, 4) AS period, SUM(cnt) AS cnt "
+                "FROM complaint_monthly_total "
+                "GROUP BY substr(month, 1, 4) ORDER BY period"
+            )
+        else:
+            time_data = run_query(
+                "SELECT month AS period, cnt FROM complaint_monthly_total ORDER BY month"
+            )
     else:
-        time_data = run_query(
-            "SELECT substr(date_received, 1, 7) AS period, COUNT(*) AS cnt "
-            "FROM cfpb_complaints "
-            "WHERE date_received IS NOT NULL "
-            "GROUP BY period ORDER BY period"
-        )
+        time_data = []
 
     if time_data:
         df_time = pd.DataFrame(time_data)
@@ -354,7 +412,7 @@ if page == "National Overview":
             xaxis_title="",
             yaxis_title="Number of Complaints",
         )
-        st.plotly_chart(fig_time, use_container_width=True)
+        st.plotly_chart(fig_time, width="stretch")
     else:
         st.info("No complaint data available yet.")
 
@@ -363,10 +421,17 @@ if page == "National Overview":
     # --- Top 10 Companies ---
     st.subheader("Top 10 Most-Complained-About Companies")
 
-    top_companies = run_query(
-        "SELECT company, COUNT(*) AS cnt FROM cfpb_complaints "
-        "GROUP BY company ORDER BY cnt DESC LIMIT 10"
-    )
+    if HAS_RAW_COMPLAINTS:
+        top_companies = run_query(
+            "SELECT company, COUNT(*) AS cnt FROM cfpb_complaints "
+            "GROUP BY company ORDER BY cnt DESC LIMIT 10"
+        )
+    elif _has_summary("complaint_by_company"):
+        top_companies = run_query(
+            "SELECT company, cnt FROM complaint_by_company ORDER BY cnt DESC LIMIT 10"
+        )
+    else:
+        top_companies = []
 
     if top_companies:
         df_companies = pd.DataFrame(top_companies)
@@ -384,7 +449,7 @@ if page == "National Overview":
             yaxis=dict(autorange="reversed"),
             height=450,
         )
-        st.plotly_chart(fig_companies, use_container_width=True)
+        st.plotly_chart(fig_companies, width="stretch")
 
         # Also show as a table
         with st.expander("View as table"):
@@ -392,7 +457,7 @@ if page == "National Overview":
                 columns={"company": "Company", "cnt": "Complaints"}
             )
             df_display.index = range(1, len(df_display) + 1)
-            st.dataframe(df_display, use_container_width=True)
+            st.dataframe(df_display, width="stretch")
     else:
         st.info("No complaint data available yet.")
 
@@ -513,7 +578,7 @@ elif page == "Institution Explorer":
         df_show = df_inst[list(display_cols.keys())].rename(columns=display_cols)
         df_show.index = range(1, len(df_show) + 1)
 
-        st.dataframe(df_show, use_container_width=True, height=400)
+        st.dataframe(df_show, width="stretch", height=400)
 
         # --- Institution Detail Drill-Down ---
         st.markdown("---")
@@ -550,13 +615,21 @@ elif page == "Institution Explorer":
                 d6.metric("Status", "Active" if inst["active"] == 1 else "Inactive")
 
                 # Linked complaints count
-                linked_count = run_scalar(
-                    "SELECT COUNT(*) FROM institution_complaints WHERE cert_number = ?",
-                    (selected_cert,),
-                ) or 0
+                if HAS_RAW_COMPLAINTS:
+                    linked_count = run_scalar(
+                        "SELECT COUNT(*) FROM institution_complaints WHERE cert_number = ?",
+                        (selected_cert,),
+                    ) or 0
+                elif _has_summary("institution_complaint_counts"):
+                    linked_count = run_scalar(
+                        "SELECT complaint_count FROM institution_complaint_counts WHERE cert_number = ?",
+                        (selected_cert,),
+                    ) or 0
+                else:
+                    linked_count = 0
                 st.markdown(f"**Linked Complaints:** {fmt_number(linked_count)}")
 
-                if linked_count > 0:
+                if linked_count > 0 and HAS_RAW_COMPLAINTS:
                     linked_complaints = run_query(
                         "SELECT c.complaint_id, c.date_received, c.product, c.issue, "
                         "c.company_response, ic.match_confidence, ic.match_method "
@@ -571,7 +644,9 @@ elif page == "Institution Explorer":
                         df_linked["match_confidence"] = df_linked["match_confidence"].apply(
                             lambda x: f"{x:.2f}" if x else "N/A"
                         )
-                        st.dataframe(df_linked, use_container_width=True, height=300)
+                        st.dataframe(df_linked, width="stretch", height=300)
+                elif linked_count > 0:
+                    st.caption(f"{fmt_number(linked_count)} complaints linked to this institution (detail view available with full database).")
 
                 # CRA Ratings for this institution
                 cra_data = run_query(
@@ -581,7 +656,7 @@ elif page == "Institution Explorer":
                 )
                 if cra_data:
                     st.markdown("**CRA Rating History:**")
-                    st.dataframe(pd.DataFrame(cra_data), use_container_width=True)
+                    st.dataframe(pd.DataFrame(cra_data), width="stretch")
                 else:
                     st.caption("No CRA ratings on file for this institution.")
 
@@ -594,7 +669,7 @@ elif page == "Institution Explorer":
                 )
                 if enforcement_data:
                     st.markdown("**Enforcement Actions:**")
-                    st.dataframe(pd.DataFrame(enforcement_data), use_container_width=True)
+                    st.dataframe(pd.DataFrame(enforcement_data), width="stretch")
                 else:
                     st.caption("No enforcement actions linked to this institution.")
     else:
@@ -614,52 +689,50 @@ elif page == "Complaint Analysis":
         "company response, and geographic distribution."
     )
 
-    _conn = _get_conn()
-    if not _table_exists(_conn, "cfpb_complaints"):
+    if not HAS_RAW_COMPLAINTS and not _has_summary("complaint_by_product"):
         st.warning("No complaint data loaded. Run the pipeline first: `python -m src.cli pipeline --full`")
         render_footer()
-        _conn.close()
         st.stop()
-    _conn.close()
 
-    # --- Filters ---
-    filter_col1, filter_col2 = st.columns(2)
+    if HAS_RAW_COMPLAINTS:
+        # --- Filters (only available with raw data) ---
+        filter_col1, filter_col2 = st.columns(2)
 
-    with filter_col1:
-        complaint_states = run_query(
-            "SELECT DISTINCT state FROM cfpb_complaints "
-            "WHERE state IS NOT NULL AND state <> '' ORDER BY state"
-        )
-        complaint_state_options = ["All States"] + [r["state"] for r in complaint_states]
-        ca_state = st.selectbox("State", complaint_state_options, key="ca_state_filter")
+        with filter_col1:
+            complaint_states = run_query(
+                "SELECT DISTINCT state FROM cfpb_complaints "
+                "WHERE state IS NOT NULL AND state <> '' ORDER BY state"
+            )
+            complaint_state_options = ["All States"] + [r["state"] for r in complaint_states]
+            ca_state = st.selectbox("State", complaint_state_options, key="ca_state_filter")
 
-    with filter_col2:
-        products = run_query(
-            "SELECT DISTINCT product FROM cfpb_complaints "
-            "WHERE product IS NOT NULL ORDER BY product"
-        )
-        product_options = ["All Products"] + [r["product"] for r in products]
-        ca_product = st.selectbox("Product", product_options, key="ca_product_filter")
+        with filter_col2:
+            products = run_query(
+                "SELECT DISTINCT product FROM cfpb_complaints "
+                "WHERE product IS NOT NULL ORDER BY product"
+            )
+            product_options = ["All Products"] + [r["product"] for r in products]
+            ca_product = st.selectbox("Product", product_options, key="ca_product_filter")
 
-    # Build WHERE clause for filters
-    ca_wheres = []
-    ca_params: list = []
-    if ca_state != "All States":
-        ca_wheres.append("state = ?")
-        ca_params.append(ca_state)
-    if ca_product != "All Products":
-        ca_wheres.append("product = ?")
-        ca_params.append(ca_product)
+        ca_wheres = []
+        ca_params: list = []
+        if ca_state != "All States":
+            ca_wheres.append("state = ?")
+            ca_params.append(ca_state)
+        if ca_product != "All Products":
+            ca_wheres.append("product = ?")
+            ca_params.append(ca_product)
 
-    ca_where_sql = (" WHERE " + " AND ".join(ca_wheres)) if ca_wheres else ""
-    ca_and_sql = (" AND " + " AND ".join(ca_wheres)) if ca_wheres else ""
+        ca_where_sql = (" WHERE " + " AND ".join(ca_wheres)) if ca_wheres else ""
+        ca_and_sql = (" AND " + " AND ".join(ca_wheres)) if ca_wheres else ""
 
-    # Filtered complaint count
-    filtered_total = run_scalar(
-        f"SELECT COUNT(*) FROM cfpb_complaints{ca_where_sql}",
-        tuple(ca_params),
-    ) or 0
-    st.markdown(f"**{fmt_number(filtered_total)}** complaints matching filters")
+        filtered_total = run_scalar(
+            f"SELECT COUNT(*) FROM cfpb_complaints{ca_where_sql}",
+            tuple(ca_params),
+        ) or 0
+        st.markdown(f"**{fmt_number(filtered_total)}** complaints matching filters")
+    else:
+        st.markdown(f"**{fmt_number(total_complaints)}** total complaints analyzed")
 
     st.markdown("---")
 
@@ -668,11 +741,17 @@ elif page == "Complaint Analysis":
 
     with col_left:
         st.subheader("Product Breakdown")
-        product_data = run_query(
-            f"SELECT product, COUNT(*) AS cnt FROM cfpb_complaints"
-            f"{ca_where_sql} GROUP BY product ORDER BY cnt DESC LIMIT 12",
-            tuple(ca_params),
-        )
+        if HAS_RAW_COMPLAINTS:
+            product_data = run_query(
+                f"SELECT product, COUNT(*) AS cnt FROM cfpb_complaints"
+                f"{ca_where_sql} GROUP BY product ORDER BY cnt DESC LIMIT 12",
+                tuple(ca_params),
+            )
+        else:
+            product_data = run_query(
+                "SELECT product, SUM(cnt) AS cnt FROM complaint_by_product "
+                "GROUP BY product ORDER BY cnt DESC LIMIT 12"
+            )
 
         if product_data:
             df_prod = pd.DataFrame(product_data)
@@ -690,18 +769,26 @@ elif page == "Complaint Analysis":
                 height=450,
             )
             fig_prod.update_traces(textposition="inside", textinfo="percent+label")
-            st.plotly_chart(fig_prod, use_container_width=True)
+            st.plotly_chart(fig_prod, width="stretch")
         else:
             st.info("No product data available.")
 
     with col_right:
         st.subheader("Top Issues")
-        issue_data = run_query(
-            f"SELECT issue, COUNT(*) AS cnt FROM cfpb_complaints "
-            f"WHERE issue IS NOT NULL"
-            f"{ca_and_sql} GROUP BY issue ORDER BY cnt DESC LIMIT 12",
-            tuple(ca_params),
-        )
+        if HAS_RAW_COMPLAINTS:
+            issue_data = run_query(
+                f"SELECT issue, COUNT(*) AS cnt FROM cfpb_complaints "
+                f"WHERE issue IS NOT NULL"
+                f"{ca_and_sql} GROUP BY issue ORDER BY cnt DESC LIMIT 12",
+                tuple(ca_params),
+            )
+        elif _has_summary("complaint_by_issue"):
+            issue_data = run_query(
+                "SELECT issue, SUM(cnt) AS cnt FROM complaint_by_issue "
+                "GROUP BY issue ORDER BY cnt DESC LIMIT 12"
+            )
+        else:
+            issue_data = []
 
         if issue_data:
             df_issue = pd.DataFrame(issue_data)
@@ -719,7 +806,7 @@ elif page == "Complaint Analysis":
                 yaxis=dict(autorange="reversed"),
                 height=450,
             )
-            st.plotly_chart(fig_issue, use_container_width=True)
+            st.plotly_chart(fig_issue, width="stretch")
         else:
             st.info("No issue data available.")
 
@@ -731,12 +818,19 @@ elif page == "Complaint Analysis":
     resp_col1, resp_col2 = st.columns(2)
 
     with resp_col1:
-        response_data = run_query(
-            f"SELECT company_response, COUNT(*) AS cnt FROM cfpb_complaints "
-            f"WHERE company_response IS NOT NULL"
-            f"{ca_and_sql} GROUP BY company_response ORDER BY cnt DESC",
-            tuple(ca_params),
-        )
+        if HAS_RAW_COMPLAINTS:
+            response_data = run_query(
+                f"SELECT company_response, COUNT(*) AS cnt FROM cfpb_complaints "
+                f"WHERE company_response IS NOT NULL"
+                f"{ca_and_sql} GROUP BY company_response ORDER BY cnt DESC",
+                tuple(ca_params),
+            )
+        elif _has_summary("complaint_by_response"):
+            response_data = run_query(
+                "SELECT company_response, cnt FROM complaint_by_response ORDER BY cnt DESC"
+            )
+        else:
+            response_data = []
 
         if response_data:
             df_resp = pd.DataFrame(response_data)
@@ -753,17 +847,24 @@ elif page == "Complaint Analysis":
                 xaxis_tickangle=-30,
                 height=400,
             )
-            st.plotly_chart(fig_resp, use_container_width=True)
+            st.plotly_chart(fig_resp, width="stretch")
         else:
             st.info("No response data available.")
 
     with resp_col2:
-        timely_data = run_query(
-            f"SELECT timely_response, COUNT(*) AS cnt FROM cfpb_complaints "
-            f"WHERE timely_response IS NOT NULL"
-            f"{ca_and_sql} GROUP BY timely_response ORDER BY cnt DESC",
-            tuple(ca_params),
-        )
+        if HAS_RAW_COMPLAINTS:
+            timely_data = run_query(
+                f"SELECT timely_response, COUNT(*) AS cnt FROM cfpb_complaints "
+                f"WHERE timely_response IS NOT NULL"
+                f"{ca_and_sql} GROUP BY timely_response ORDER BY cnt DESC",
+                tuple(ca_params),
+            )
+        elif _has_summary("complaint_by_timeliness"):
+            timely_data = run_query(
+                "SELECT timely_response, cnt FROM complaint_by_timeliness ORDER BY cnt DESC"
+            )
+        else:
+            timely_data = []
 
         if timely_data:
             df_timely = pd.DataFrame(timely_data)
@@ -778,7 +879,7 @@ elif page == "Complaint Analysis":
                 title="Timely Response Rate",
                 height=400,
             )
-            st.plotly_chart(fig_timely, use_container_width=True)
+            st.plotly_chart(fig_timely, width="stretch")
         else:
             st.info("No timeliness data available.")
 
@@ -786,12 +887,19 @@ elif page == "Complaint Analysis":
 
     # --- Submission Channel ---
     st.subheader("Submission Channels")
-    channel_data = run_query(
-        f"SELECT submitted_via, COUNT(*) AS cnt FROM cfpb_complaints "
-        f"WHERE submitted_via IS NOT NULL"
-        f"{ca_and_sql} GROUP BY submitted_via ORDER BY cnt DESC",
-        tuple(ca_params),
-    )
+    if HAS_RAW_COMPLAINTS:
+        channel_data = run_query(
+            f"SELECT submitted_via, COUNT(*) AS cnt FROM cfpb_complaints "
+            f"WHERE submitted_via IS NOT NULL"
+            f"{ca_and_sql} GROUP BY submitted_via ORDER BY cnt DESC",
+            tuple(ca_params),
+        )
+    elif _has_summary("complaint_by_channel"):
+        channel_data = run_query(
+            "SELECT submitted_via, cnt FROM complaint_by_channel ORDER BY cnt DESC"
+        )
+    else:
+        channel_data = []
 
     if channel_data:
         df_channel = pd.DataFrame(channel_data)
@@ -807,7 +915,7 @@ elif page == "Complaint Analysis":
             title="How Complaints Are Submitted",
             height=350,
         )
-        st.plotly_chart(fig_channel, use_container_width=True)
+        st.plotly_chart(fig_channel, width="stretch")
 
     render_footer()
 
@@ -913,7 +1021,7 @@ elif page == "Enforcement Timeline":
             title="Enforcement Actions by Type",
             height=350,
         )
-        st.plotly_chart(fig_type, use_container_width=True)
+        st.plotly_chart(fig_type, width="stretch")
 
     st.markdown("---")
 
@@ -940,7 +1048,7 @@ elif page == "Enforcement Timeline":
             title="Enforcement Actions by Year",
             height=350,
         )
-        st.plotly_chart(fig_timeline, use_container_width=True)
+        st.plotly_chart(fig_timeline, width="stretch")
 
     st.markdown("---")
 
@@ -971,7 +1079,7 @@ elif page == "Enforcement Timeline":
             "description": "Description",
         })
         display_df.index = range(1, len(display_df) + 1)
-        st.dataframe(display_df, use_container_width=True, height=500)
+        st.dataframe(display_df, width="stretch", height=500)
     else:
         st.info("No enforcement actions match the current filters.")
 
@@ -989,20 +1097,22 @@ elif page == "Geographic Analysis":
         "consumer complaints."
     )
 
-    _conn = _get_conn()
-    if not _table_exists(_conn, "cfpb_complaints"):
+    if not HAS_RAW_COMPLAINTS and not _has_summary("complaint_by_state"):
         st.warning("No complaint data loaded. Run the pipeline first: `python -m src.cli pipeline --full`")
         render_footer()
-        _conn.close()
         st.stop()
-    _conn.close()
 
     # --- State-level complaint counts ---
-    state_data = run_query(
-        "SELECT state, COUNT(*) AS cnt FROM cfpb_complaints "
-        "WHERE state IS NOT NULL AND state <> '' "
-        "GROUP BY state ORDER BY cnt DESC"
-    )
+    if HAS_RAW_COMPLAINTS:
+        state_data = run_query(
+            "SELECT state, COUNT(*) AS cnt FROM cfpb_complaints "
+            "WHERE state IS NOT NULL AND state <> '' "
+            "GROUP BY state ORDER BY cnt DESC"
+        )
+    else:
+        state_data = run_query(
+            "SELECT state, cnt FROM complaint_by_state ORDER BY cnt DESC"
+        )
 
     if not state_data:
         st.warning("No geographic complaint data available.")
@@ -1050,7 +1160,7 @@ elif page == "Geographic Analysis":
         ),
         height=550,
     )
-    st.plotly_chart(fig_map, use_container_width=True)
+    st.plotly_chart(fig_map, width="stretch")
 
     st.markdown("---")
 
@@ -1073,7 +1183,7 @@ elif page == "Geographic Analysis":
             yaxis=dict(autorange="reversed"),
             height=500,
         )
-        st.plotly_chart(fig_top, use_container_width=True)
+        st.plotly_chart(fig_top, width="stretch")
 
     with col_bottom:
         st.subheader("Bottom 15 States by Complaint Volume")
@@ -1090,7 +1200,7 @@ elif page == "Geographic Analysis":
             **PLOTLY_LAYOUT,
             height=500,
         )
-        st.plotly_chart(fig_bottom, use_container_width=True)
+        st.plotly_chart(fig_bottom, width="stretch")
 
     st.markdown("---")
 
@@ -1108,7 +1218,7 @@ elif page == "Geographic Analysis":
     ).round(2)
     df_table.index = range(1, len(df_table) + 1)
 
-    st.dataframe(df_table, use_container_width=True, height=400)
+    st.dataframe(df_table, width="stretch", height=400)
 
     render_footer()
 
@@ -1134,7 +1244,7 @@ elif page == "CRA vs. Complaints":
 
     # Check if we have CRA data and cross-links
     cra_count = run_scalar("SELECT COUNT(*) FROM cra_ratings") or 0
-    cross_link_count = run_scalar("SELECT COUNT(*) FROM institution_complaints") or 0
+    cross_link_count = total_cross_links_global
 
     if cra_count == 0:
         st.warning(
@@ -1189,7 +1299,7 @@ elif page == "CRA vs. Complaints":
             showlegend=False,
             height=400,
         )
-        st.plotly_chart(fig_cra, use_container_width=True)
+        st.plotly_chart(fig_cra, width="stretch")
 
     st.markdown("---")
 
@@ -1286,7 +1396,7 @@ elif page == "CRA vs. Complaints":
                 ),
                 height=550,
             )
-            st.plotly_chart(fig_scatter, use_container_width=True)
+            st.plotly_chart(fig_scatter, width="stretch")
 
             # --- Outlier Table ---
             st.subheader("Notable Outliers")
@@ -1312,7 +1422,7 @@ elif page == "CRA vs. Complaints":
                     "asset_tier": "Asset Tier",
                 })
                 display_outliers.index = range(1, len(display_outliers) + 1)
-                st.dataframe(display_outliers, use_container_width=True)
+                st.dataframe(display_outliers, width="stretch")
             else:
                 st.info("No outlier data found with current filters.")
         else:
@@ -1337,35 +1447,51 @@ elif page == "Trends & Patterns":
         "and response timeliness analysis."
     )
 
-    _conn = _get_conn()
-    if not _table_exists(_conn, "cfpb_complaints"):
+    if not HAS_RAW_COMPLAINTS and not _has_summary("complaint_monthly"):
         st.warning("No complaint data loaded. Run the pipeline first: `python -m src.cli pipeline --full`")
         render_footer()
-        _conn.close()
         st.stop()
-    _conn.close()
 
     # --- Year-over-Year Trends by Product ---
     st.subheader("Year-over-Year Trends by Product")
 
-    # Get top 5 products for trend analysis
-    top_products = run_query(
-        "SELECT product, COUNT(*) AS cnt FROM cfpb_complaints "
-        "WHERE product IS NOT NULL "
-        "GROUP BY product ORDER BY cnt DESC LIMIT 5"
-    )
+    if HAS_RAW_COMPLAINTS:
+        top_products = run_query(
+            "SELECT product, COUNT(*) AS cnt FROM cfpb_complaints "
+            "WHERE product IS NOT NULL "
+            "GROUP BY product ORDER BY cnt DESC LIMIT 5"
+        )
+    elif _has_summary("complaint_by_product"):
+        top_products = run_query(
+            "SELECT product, SUM(cnt) AS cnt FROM complaint_by_product "
+            "GROUP BY product ORDER BY cnt DESC LIMIT 5"
+        )
+    else:
+        top_products = []
 
     if top_products:
         product_names = [r["product"] for r in top_products]
-        placeholders = ", ".join(["?" for _ in product_names])
 
-        yoy_data = run_query(
-            f"SELECT substr(date_received, 1, 4) AS year, product, COUNT(*) AS cnt "
-            f"FROM cfpb_complaints "
-            f"WHERE product IN ({placeholders}) AND date_received IS NOT NULL "
-            f"GROUP BY year, product ORDER BY year",
-            tuple(product_names),
-        )
+        if HAS_RAW_COMPLAINTS:
+            placeholders = ", ".join(["?" for _ in product_names])
+            yoy_data = run_query(
+                f"SELECT substr(date_received, 1, 4) AS year, product, COUNT(*) AS cnt "
+                f"FROM cfpb_complaints "
+                f"WHERE product IN ({placeholders}) AND date_received IS NOT NULL "
+                f"GROUP BY year, product ORDER BY year",
+                tuple(product_names),
+            )
+        elif _has_summary("complaint_monthly"):
+            placeholders = ", ".join(["?" for _ in product_names])
+            yoy_data = run_query(
+                f"SELECT substr(month, 1, 4) AS year, product, SUM(cnt) AS cnt "
+                f"FROM complaint_monthly "
+                f"WHERE product IN ({placeholders}) "
+                f"GROUP BY substr(month, 1, 4), product ORDER BY year",
+                tuple(product_names),
+            )
+        else:
+            yoy_data = []
 
         if yoy_data:
             df_yoy = pd.DataFrame(yoy_data)
@@ -1387,19 +1513,28 @@ elif page == "Trends & Patterns":
                 height=450,
                 legend=dict(orientation="h", yanchor="bottom", y=-0.3, x=0),
             )
-            st.plotly_chart(fig_yoy, use_container_width=True)
+            st.plotly_chart(fig_yoy, width="stretch")
 
     st.markdown("---")
 
     # --- Monthly Patterns ---
     st.subheader("Monthly Complaint Patterns")
 
-    monthly_data = run_query(
-        "SELECT substr(date_received, 6, 2) AS month, COUNT(*) AS cnt "
-        "FROM cfpb_complaints "
-        "WHERE date_received IS NOT NULL AND length(date_received) >= 7 "
-        "GROUP BY month ORDER BY month"
-    )
+    if HAS_RAW_COMPLAINTS:
+        monthly_data = run_query(
+            "SELECT substr(date_received, 6, 2) AS month, COUNT(*) AS cnt "
+            "FROM cfpb_complaints "
+            "WHERE date_received IS NOT NULL AND length(date_received) >= 7 "
+            "GROUP BY month ORDER BY month"
+        )
+    elif _has_summary("complaint_monthly_total"):
+        monthly_data = run_query(
+            "SELECT substr(month, 6, 2) AS month, SUM(cnt) AS cnt "
+            "FROM complaint_monthly_total "
+            "GROUP BY substr(month, 6, 2) ORDER BY month"
+        )
+    else:
+        monthly_data = []
 
     if monthly_data:
         df_monthly = pd.DataFrame(monthly_data)
@@ -1423,20 +1558,26 @@ elif page == "Trends & Patterns":
             title="Complaints by Month (All Years)",
             height=350,
         )
-        st.plotly_chart(fig_monthly, use_container_width=True)
+        st.plotly_chart(fig_monthly, width="stretch")
 
     st.markdown("---")
 
-    # --- Day of Week Patterns (derived from date) ---
+    # --- Day of Week Patterns ---
     st.subheader("Weekly Submission Patterns")
 
-    # SQLite strftime('%w', date) returns 0=Sunday, 6=Saturday
-    dow_data = run_query(
-        "SELECT CAST(strftime('%w', date_received) AS INTEGER) AS dow, COUNT(*) AS cnt "
-        "FROM cfpb_complaints "
-        "WHERE date_received IS NOT NULL "
-        "GROUP BY dow ORDER BY dow"
-    )
+    if HAS_RAW_COMPLAINTS:
+        dow_data = run_query(
+            "SELECT CAST(strftime('%w', date_received) AS INTEGER) AS dow, COUNT(*) AS cnt "
+            "FROM cfpb_complaints "
+            "WHERE date_received IS NOT NULL "
+            "GROUP BY dow ORDER BY dow"
+        )
+    elif _has_summary("complaint_by_weekday"):
+        dow_data = run_query(
+            "SELECT day_num AS dow, cnt FROM complaint_by_weekday ORDER BY day_num"
+        )
+    else:
+        dow_data = []
 
     if dow_data:
         df_dow = pd.DataFrame(dow_data)
@@ -1457,19 +1598,22 @@ elif page == "Trends & Patterns":
             title="Complaints by Day of Week (All Time)",
             height=350,
         )
-        st.plotly_chart(fig_dow, use_container_width=True)
+        st.plotly_chart(fig_dow, width="stretch")
 
     st.markdown("---")
 
     # --- Response Timeliness Trends ---
     st.subheader("Response Timeliness Trends")
 
-    timely_trend = run_query(
-        "SELECT substr(date_received, 1, 4) AS year, timely_response, COUNT(*) AS cnt "
-        "FROM cfpb_complaints "
-        "WHERE timely_response IS NOT NULL AND date_received IS NOT NULL "
-        "GROUP BY year, timely_response ORDER BY year"
-    )
+    if HAS_RAW_COMPLAINTS:
+        timely_trend = run_query(
+            "SELECT substr(date_received, 1, 4) AS year, timely_response, COUNT(*) AS cnt "
+            "FROM cfpb_complaints "
+            "WHERE timely_response IS NOT NULL AND date_received IS NOT NULL "
+            "GROUP BY year, timely_response ORDER BY year"
+        )
+    else:
+        timely_trend = []
 
     if timely_trend:
         df_timely_trend = pd.DataFrame(timely_trend)
@@ -1500,7 +1644,7 @@ elif page == "Trends & Patterns":
                 yaxis=dict(range=[80, 105]),
                 height=400,
             )
-            st.plotly_chart(fig_timely_trend, use_container_width=True)
+            st.plotly_chart(fig_timely_trend, width="stretch")
         else:
             st.info("Insufficient timeliness data for trend analysis.")
     else:
@@ -1515,15 +1659,23 @@ elif page == "Trends & Patterns":
         "most recent full year to the year before."
     )
 
-    # Find the two most recent full years
-    years_data = run_query(
-        "SELECT DISTINCT substr(date_received, 1, 4) AS year "
-        "FROM cfpb_complaints "
-        "WHERE date_received IS NOT NULL "
-        "ORDER BY year DESC LIMIT 5"
-    )
+    if HAS_RAW_COMPLAINTS:
+        years_data = run_query(
+            "SELECT DISTINCT substr(date_received, 1, 4) AS year "
+            "FROM cfpb_complaints "
+            "WHERE date_received IS NOT NULL "
+            "ORDER BY year DESC LIMIT 5"
+        )
+    elif _has_summary("complaint_monthly_total"):
+        years_data = run_query(
+            "SELECT DISTINCT substr(month, 1, 4) AS year "
+            "FROM complaint_monthly_total "
+            "ORDER BY year DESC LIMIT 5"
+        )
+    else:
+        years_data = []
 
-    if years_data and len(years_data) >= 3:
+    if years_data and len(years_data) >= 3 and HAS_RAW_COMPLAINTS:
         # Skip the current partial year (most recent), use the two before it
         recent_year = years_data[1]["year"]
         prev_year = years_data[2]["year"]
@@ -1568,7 +1720,7 @@ elif page == "Trends & Patterns":
                 height=500,
                 coloraxis_showscale=False,
             )
-            st.plotly_chart(fig_emerging, use_container_width=True)
+            st.plotly_chart(fig_emerging, width="stretch")
 
             # Table view
             with st.expander("View as table"):
@@ -1582,7 +1734,7 @@ elif page == "Trends & Patterns":
                     "pct_change": "% Change",
                 })
                 df_emerging_display.index = range(1, len(df_emerging_display) + 1)
-                st.dataframe(df_emerging_display, use_container_width=True)
+                st.dataframe(df_emerging_display, width="stretch")
         else:
             st.info("Insufficient data for emerging issue analysis.")
     else:
@@ -1593,22 +1745,34 @@ elif page == "Trends & Patterns":
     # --- Top Companies Year-over-Year ---
     st.subheader("Top 10 Companies: Complaint Trends")
 
-    top_co_data = run_query(
-        "SELECT company FROM cfpb_complaints "
-        "GROUP BY company ORDER BY COUNT(*) DESC LIMIT 10"
-    )
+    if HAS_RAW_COMPLAINTS:
+        top_co_data = run_query(
+            "SELECT company FROM cfpb_complaints "
+            "GROUP BY company ORDER BY COUNT(*) DESC LIMIT 10"
+        )
+    elif _has_summary("complaint_by_company"):
+        top_co_data = run_query(
+            "SELECT company FROM complaint_by_company ORDER BY cnt DESC LIMIT 10"
+        )
+    else:
+        top_co_data = []
 
     if top_co_data:
         co_names = [r["company"] for r in top_co_data]
         co_placeholders = ", ".join(["?" for _ in co_names])
 
-        co_trend = run_query(
-            f"SELECT substr(date_received, 1, 4) AS year, company, COUNT(*) AS cnt "
-            f"FROM cfpb_complaints "
-            f"WHERE company IN ({co_placeholders}) AND date_received IS NOT NULL "
-            f"GROUP BY year, company ORDER BY year",
-            tuple(co_names),
-        )
+        if HAS_RAW_COMPLAINTS:
+            co_trend = run_query(
+                f"SELECT substr(date_received, 1, 4) AS year, company, COUNT(*) AS cnt "
+                f"FROM cfpb_complaints "
+                f"WHERE company IN ({co_placeholders}) AND date_received IS NOT NULL "
+                f"GROUP BY year, company ORDER BY year",
+                tuple(co_names),
+            )
+        elif _has_summary("complaint_monthly"):
+            co_trend = None  # Can't derive per-company trends from monthly product summaries
+        else:
+            co_trend = None
 
         if co_trend:
             df_co_trend = pd.DataFrame(co_trend)
@@ -1626,7 +1790,7 @@ elif page == "Trends & Patterns":
                 height=500,
                 legend=dict(orientation="h", yanchor="bottom", y=-0.4, x=0, font=dict(size=9)),
             )
-            st.plotly_chart(fig_co, use_container_width=True)
+            st.plotly_chart(fig_co, width="stretch")
 
     render_footer()
 
@@ -1682,16 +1846,25 @@ elif page == "Financial Health":
         # Top 50 institutions by assets with complaint overlay
         st.subheader("Top 50 Institutions by Assets")
 
-        top_assets = run_query("""
+        if _has_summary("institution_complaint_counts"):
+            complaint_join = (
+                "LEFT JOIN institution_complaint_counts ic ON fi.cert_number = ic.cert_number"
+            )
+        elif HAS_RAW_COMPLAINTS:
+            complaint_join = (
+                "LEFT JOIN (SELECT cert_number, COUNT(*) as complaint_count "
+                "FROM institution_complaints GROUP BY cert_number) ic ON fi.cert_number = ic.cert_number"
+            )
+        else:
+            complaint_join = ""
+
+        top_assets = run_query(f"""
             SELECT fi.institution_name, fi.state, f.total_assets, f.roa, f.roe,
                    f.tier1_capital_ratio, f.noncurrent_loans_pct,
-                   COALESCE(ic.complaint_count, 0) as complaints
+                   COALESCE({"ic.complaint_count" if complaint_join else "0"}, 0) as complaints
             FROM institution_financials f
             JOIN financial_institutions fi ON f.cert_number = fi.cert_number
-            LEFT JOIN (
-                SELECT cert_number, COUNT(*) as complaint_count
-                FROM institution_complaints GROUP BY cert_number
-            ) ic ON fi.cert_number = ic.cert_number
+            {complaint_join}
             WHERE (f.cert_number, f.report_date) IN (
                 SELECT cert_number, MAX(report_date) FROM institution_financials GROUP BY cert_number
             )
@@ -1724,7 +1897,7 @@ elif page == "Financial Health":
                 title="Total Assets vs. Complaint Volume",
                 height=500,
             )
-            st.plotly_chart(fig_scatter, use_container_width=True)
+            st.plotly_chart(fig_scatter, width="stretch")
 
             # Table view
             st.dataframe(
@@ -1741,7 +1914,7 @@ elif page == "Financial Health":
                         "complaints": "Complaints",
                     }
                 ),
-                use_container_width=True,
+                width="stretch",
                 height=500,
             )
 
@@ -1781,7 +1954,7 @@ elif page == "Financial Health":
                         labels={"report_date": "Quarter", "value": "%", "variable": "Metric"},
                     )
                     fig_trend.update_layout(**PLOTLY_LAYOUT, title=f"Financial Trends: {selected}", height=400)
-                    st.plotly_chart(fig_trend, use_container_width=True)
+                    st.plotly_chart(fig_trend, width="stretch")
 
         render_footer()
 
@@ -1846,7 +2019,7 @@ elif page == "Multi-Agency Enforcement":
                 color_discrete_sequence=[COLOR_PRIMARY, COLOR_ACCENT_1, COLOR_ACCENT_2, COLOR_ACCENT_3],
             )
             fig_agency.update_layout(**PLOTLY_LAYOUT, title="Enforcement Actions by Agency", height=400, showlegend=False)
-            st.plotly_chart(fig_agency, use_container_width=True)
+            st.plotly_chart(fig_agency, width="stretch")
 
         st.markdown("---")
 
@@ -1890,7 +2063,7 @@ elif page == "Multi-Agency Enforcement":
                         "penalty_amount": "Penalty",
                         "source_url": "Source",
                     }),
-                    use_container_width=True,
+                    width="stretch",
                     height=500,
                 )
 
@@ -1921,7 +2094,7 @@ elif page == "Multi-Agency Enforcement":
             )
             fig_pen.update_layout(**PLOTLY_LAYOUT, title="Top 15 Institutions by Enforcement Penalties", height=500)
             fig_pen.update_xaxes(tickangle=45)
-            st.plotly_chart(fig_pen, use_container_width=True)
+            st.plotly_chart(fig_pen, width="stretch")
 
         render_footer()
 
@@ -1976,7 +2149,7 @@ elif page == "Institution Risk Profiles":
                 color_discrete_map=tier_colors,
             )
             fig_tier.update_layout(**PLOTLY_LAYOUT, title="Risk Tier Distribution", height=400)
-            st.plotly_chart(fig_tier, use_container_width=True)
+            st.plotly_chart(fig_tier, width="stretch")
 
         st.markdown("---")
 
@@ -2026,7 +2199,7 @@ elif page == "Institution Risk Profiles":
                         "overall_risk_score": "Risk Score",
                         "risk_tier": "Risk Tier",
                     }),
-                    use_container_width=True,
+                    width="stretch",
                     height=500,
                 )
 
@@ -2057,7 +2230,7 @@ elif page == "Institution Risk Profiles":
                 labels={"assets_b": "Total Assets ($B)", "overall_risk_score": "Risk Score (higher=safer)", "risk_tier": "Risk Tier"},
             )
             fig_peer.update_layout(**PLOTLY_LAYOUT, title="Risk Score vs. Total Assets", height=500)
-            st.plotly_chart(fig_peer, use_container_width=True)
+            st.plotly_chart(fig_peer, width="stretch")
 
         render_footer()
 
@@ -2126,7 +2299,7 @@ elif page == "Fair Lending Analysis":
                 color_discrete_sequence=[COLOR_PRIMARY],
             )
             fig_hist.update_layout(**PLOTLY_LAYOUT, title="Distribution of Mortgage Denial Rates", height=400)
-            st.plotly_chart(fig_hist, use_container_width=True)
+            st.plotly_chart(fig_hist, width="stretch")
 
             # Top deniers table
             st.subheader("Institutions with Highest Denial Rates")
@@ -2138,7 +2311,7 @@ elif page == "Fair Lending Analysis":
                     "total_originations": "Originations",
                     "total_denials": "Denials",
                 }),
-                use_container_width=True,
+                width="stretch",
                 height=400,
             )
 
@@ -2166,6 +2339,6 @@ elif page == "Fair Lending Analysis":
                 color_discrete_sequence=[COLOR_ACCENT_5, COLOR_ACCENT_3],
             )
             fig_year.update_layout(**PLOTLY_LAYOUT, title="Mortgage Originations vs. Denials by Year", height=400)
-            st.plotly_chart(fig_year, use_container_width=True)
+            st.plotly_chart(fig_year, width="stretch")
 
         render_footer()
