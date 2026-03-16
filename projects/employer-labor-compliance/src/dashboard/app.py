@@ -183,7 +183,8 @@ def show_overview(conn):
 
     c9, c10, c11, c12 = st.columns(4)
     c9.metric("Workplace Fatalities (OSHA)", f"{fatalities:,}")
-    c10.metric("NLRB Open Cases", f"{_safe_fetchone(conn, 'SELECT COUNT(*) FROM nlrb_cases WHERE status = ''Open'''):,}")
+    open_nlrb = _safe_fetchone(conn, "SELECT COUNT(*) FROM nlrb_cases WHERE status = 'Open'")
+    c10.metric("NLRB Open Cases", f"{open_nlrb:,}")
     c11.metric("WHD Penalties", f"${whd_penalties:,.0f}")
     c12.metric("OSHA Penalties", f"${osha_penalties:,.0f}")
 
