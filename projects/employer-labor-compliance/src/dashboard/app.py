@@ -194,9 +194,15 @@ def show_overview(conn):
     c7.metric("Workers Affected", f"{employees:,}")
     c8.metric("Multi-Agency Offenders", f"{multi_agency:,}")
 
-    c9, c10 = st.columns(2)
+    three_agency = _safe_fetchone(conn, """
+        SELECT COUNT(*) FROM employers
+        WHERE whd_case_count > 0 AND osha_inspection_count > 0 AND nlrb_case_count > 0
+    """)
+    c9, c10, c11, c12 = st.columns(4)
     c9.metric("NLRB Open Cases", f"{open_nlrb:,}")
-    c10.metric("Total Enforcement Records", f"{nlrb + whd + osha:,}")
+    c10.metric("All 3 Agencies", f"{three_agency:,}")
+    c11.metric("Total Records", f"{nlrb + whd + osha:,}")
+    c12.metric("Federal Laws Tracked", "6")
 
     st.markdown("---")
 
@@ -288,10 +294,16 @@ def show_geographic(conn):
         color="_color", scope="usa",
         color_continuous_scale="YlOrRd",
         title=f"{metric} by State",
-        hover_data=["nlrb_cases", "whd_cases", "osha_inspections", "back_wages"],
+        hover_data={
+            "_color": False,
+            "nlrb_cases": ":,",
+            "whd_cases": ":,",
+            "osha_inspections": ":,",
+            "back_wages": ":$,.0f",
+        },
     )
     fig.update_layout(**_DARK, height=500)
-    fig.update_coloraxes(colorbar_title=metric)
+    fig.update_coloraxes(showscale=False)
     st.plotly_chart(fig, use_container_width=True)
 
     st.subheader("State Breakdown")
@@ -324,26 +336,26 @@ def show_multi_agency(conn):
     c1.metric("2+ Agency Offenders", f"{multi_count:,}")
     c2.metric("All 3 Agencies", f"{three_agency:,}")
 
-    # Top multi-agency offenders — merge name variants
+    # Top multi-agency offenders — merge name variants, filter UNKNOWN
     df = _safe_query(f"""
         SELECT merged_name as employer,
-               MAX(primary_state) as state,
                SUM(whd_case_count) as whd,
                SUM(osha_inspection_count) as osha,
                SUM(nlrb_case_count) as nlrb,
                SUM(whd_case_count + osha_inspection_count + nlrb_case_count) as total,
-               SUM(total_back_wages) as total_back_wages,
-               SUM(total_penalties) as total_penalties
+               SUM(total_back_wages) as total_back_wages
         FROM (
             SELECT {_EMPLOYER_MERGE} as merged_name,
-                   primary_state, whd_case_count, osha_inspection_count, nlrb_case_count,
-                   total_back_wages, total_penalties
+                   whd_case_count, osha_inspection_count, nlrb_case_count,
+                   total_back_wages
             FROM employers
             WHERE (CASE WHEN whd_case_count > 0 THEN 1 ELSE 0 END +
                    CASE WHEN osha_inspection_count > 0 THEN 1 ELSE 0 END +
                    CASE WHEN nlrb_case_count > 0 THEN 1 ELSE 0 END) >= 2
+              AND name_normalized NOT IN ('UNKNOWN', '', 'NONE', 'N A')
         )
         GROUP BY merged_name
+        HAVING merged_name NOT IN ('UNKNOWN', '', 'NONE', 'N A')
         ORDER BY total DESC
         LIMIT 100
     """, conn)
@@ -356,7 +368,6 @@ def show_multi_agency(conn):
     st.dataframe(
         df.style.format({
             "total_back_wages": "${:,.0f}",
-            "total_penalties": "${:,.0f}",
         }),
         use_container_width=True, height=500,
     )
@@ -390,20 +401,20 @@ def show_top_employers(conn):
 
     df = _safe_query(f"""
         SELECT merged_name as employer,
-               MAX(primary_state) as state,
                SUM(nlrb_case_count) as nlrb,
                SUM(whd_case_count) as whd,
                SUM(osha_inspection_count) as osha,
                SUM(whd_case_count + osha_inspection_count + nlrb_case_count) as total,
-               SUM(total_back_wages) as total_back_wages,
-               SUM(total_penalties) as total_penalties
+               SUM(total_back_wages) as total_back_wages
         FROM (
             SELECT {_EMPLOYER_MERGE} as merged_name,
-                   primary_state, whd_case_count, osha_inspection_count, nlrb_case_count,
-                   total_back_wages, total_penalties
+                   whd_case_count, osha_inspection_count, nlrb_case_count,
+                   total_back_wages
             FROM employers
+            WHERE name_normalized NOT IN ('UNKNOWN', '', 'NONE', 'N A')
         )
         GROUP BY merged_name
+        HAVING merged_name NOT IN ('UNKNOWN', '', 'NONE', 'N A')
         ORDER BY {sort_col[sort_by]} DESC
         LIMIT 50
     """, conn)
@@ -421,7 +432,7 @@ def show_top_employers(conn):
     st.plotly_chart(fig, use_container_width=True)
 
     st.dataframe(
-        df.style.format({"total_back_wages": "${:,.0f}", "total_penalties": "${:,.0f}"}),
+        df.style.format({"total_back_wages": "${:,.0f}"}),
         use_container_width=True, height=400,
     )
 
@@ -611,7 +622,7 @@ def show_osha(conn):
 
     c1, c2, c3 = st.columns(3)
     c1.metric("Total Inspections", f"{osha_count:,}")
-    c2.metric("States Covered", f"{states_covered:,}")
+    c2.metric("States/Territories", f"{states_covered:,}")
     c3.metric("Employers Inspected", f"{employers_inspected:,}")
 
     st.caption(f"Coverage period: {date_range}")
@@ -667,10 +678,13 @@ def show_osha(conn):
                 END as merged_name,
                 site_state,
                 COUNT(*) as cnt
-            FROM osha_inspections WHERE employer_normalized != ''
+            FROM osha_inspections
+            WHERE employer_normalized != ''
+              AND employer_normalized NOT IN ('UNKNOWN', 'NONE', 'N A')
             GROUP BY employer_normalized, site_state
         )
         GROUP BY merged_name
+        HAVING merged_name NOT IN ('UNKNOWN', 'NONE', 'N A')
         ORDER BY inspections DESC
         LIMIT 25
     """, conn)
@@ -739,7 +753,9 @@ def show_nlrb(conn):
         SELECT case_type, COUNT(*) as count FROM nlrb_cases GROUP BY case_type ORDER BY count DESC
     """, conn)
     if not df_types.empty:
-        df_types["description"] = df_types["case_type"].map(CASE_TYPE_LABELS)
+        df_types["description"] = df_types["case_type"].map(
+            lambda ct: CASE_TYPE_LABELS.get(ct, "Other")
+        )
         st.dataframe(df_types.rename(columns={"case_type": "Type", "count": "Cases", "description": "Description"}),
                      use_container_width=True)
 
@@ -756,14 +772,24 @@ def show_employer_search(conn):
 
     search_pattern = f"%{search_term.upper()}%"
 
-    df_emp = _safe_query("""
-        SELECT name_normalized as employer, primary_state as state,
-               nlrb_case_count as nlrb, whd_case_count as whd,
-               osha_inspection_count as osha,
-               (whd_case_count + osha_inspection_count + nlrb_case_count) as total,
-               total_back_wages, total_penalties
-        FROM employers WHERE name_normalized LIKE ?
-        ORDER BY (whd_case_count + osha_inspection_count + nlrb_case_count) DESC
+    df_emp = _safe_query(f"""
+        SELECT merged_name as employer,
+               SUM(nlrb_case_count) as nlrb,
+               SUM(whd_case_count) as whd,
+               SUM(osha_inspection_count) as osha,
+               SUM(whd_case_count + osha_inspection_count + nlrb_case_count) as total,
+               SUM(total_back_wages) as total_back_wages
+        FROM (
+            SELECT {_EMPLOYER_MERGE} as merged_name,
+                   nlrb_case_count, whd_case_count, osha_inspection_count,
+                   total_back_wages
+            FROM employers
+            WHERE name_normalized LIKE ?
+              AND name_normalized NOT IN ('UNKNOWN', '', 'NONE', 'N A')
+        )
+        GROUP BY merged_name
+        HAVING merged_name NOT IN ('UNKNOWN', '', 'NONE', 'N A')
+        ORDER BY total DESC
         LIMIT 50
     """, conn, params=(search_pattern,))
 
@@ -773,13 +799,16 @@ def show_employer_search(conn):
 
     st.subheader(f"Found {len(df_emp)} employer(s)")
     st.dataframe(
-        df_emp.style.format({"total_back_wages": "${:,.0f}", "total_penalties": "${:,.0f}"}),
+        df_emp.style.format({"total_back_wages": "${:,.0f}"}),
         use_container_width=True,
     )
 
     emp_name = df_emp.iloc[0]["employer"]
     st.markdown("---")
     st.subheader(f"Detail: {emp_name}")
+
+    # Find all original names that map to this merged name for detail queries
+    emp_like = f"%{emp_name}%"
 
     # Agency breakdown
     c1, c2, c3, c4 = st.columns(4)
@@ -794,9 +823,9 @@ def show_employer_search(conn):
         with st.expander(f"NLRB Cases ({int(row['nlrb']):,})", expanded=True):
             df_nlrb = _safe_query("""
                 SELECT case_number, case_name, date_filed, status, case_type, allegation, city, state
-                FROM nlrb_cases WHERE employer_normalized = ?
+                FROM nlrb_cases WHERE employer_normalized LIKE ?
                 ORDER BY date_filed DESC LIMIT 25
-            """, conn, params=(emp_name,))
+            """, conn, params=(emp_like,))
             if not df_nlrb.empty:
                 st.dataframe(df_nlrb, use_container_width=True)
 
@@ -807,9 +836,9 @@ def show_employer_search(conn):
                 SELECT trade_name, city, state, findings_start_date as date,
                        back_wages_owed as back_wages, civil_penalties as penalties,
                        employees_affected as employees, naics_description as industry
-                FROM whd_cases WHERE employer_normalized = ?
+                FROM whd_cases WHERE employer_normalized LIKE ?
                 ORDER BY findings_start_date DESC LIMIT 25
-            """, conn, params=(emp_name,))
+            """, conn, params=(emp_like,))
             if not df_whd.empty:
                 st.dataframe(
                     df_whd.style.format({"back_wages": "${:,.0f}", "penalties": "${:,.0f}"}),
@@ -822,9 +851,9 @@ def show_employer_search(conn):
             df_osha = _safe_query("""
                 SELECT establishment_name, site_city, site_state, open_date,
                        inspection_type
-                FROM osha_inspections WHERE employer_normalized = ?
+                FROM osha_inspections WHERE employer_normalized LIKE ?
                 ORDER BY open_date DESC LIMIT 25
-            """, conn, params=(emp_name,))
+            """, conn, params=(emp_like,))
             if not df_osha.empty:
                 st.dataframe(df_osha, use_container_width=True)
 
@@ -832,15 +861,15 @@ def show_employer_search(conn):
     df_time = _safe_query("""
         SELECT month, SUM(nlrb) as NLRB, SUM(whd) as WHD, SUM(osha) as OSHA FROM (
             SELECT substr(date_filed,1,7) as month, COUNT(*) as nlrb, 0 as whd, 0 as osha
-            FROM nlrb_cases WHERE employer_normalized = ? AND date_filed != '' GROUP BY 1
+            FROM nlrb_cases WHERE employer_normalized LIKE ? AND date_filed != '' GROUP BY 1
             UNION ALL
             SELECT substr(findings_start_date,1,7), 0, COUNT(*), 0
-            FROM whd_cases WHERE employer_normalized = ? AND findings_start_date != '' GROUP BY 1
+            FROM whd_cases WHERE employer_normalized LIKE ? AND findings_start_date != '' GROUP BY 1
             UNION ALL
             SELECT substr(open_date,1,7), 0, 0, COUNT(*)
-            FROM osha_inspections WHERE employer_normalized = ? AND open_date != '' GROUP BY 1
+            FROM osha_inspections WHERE employer_normalized LIKE ? AND open_date != '' GROUP BY 1
         ) GROUP BY month ORDER BY month
-    """, conn, params=(emp_name, emp_name, emp_name))
+    """, conn, params=(emp_like, emp_like, emp_like))
     if not df_time.empty and len(df_time) > 2:
         fig = px.line(df_time, x="month", y=["NLRB", "WHD", "OSHA"],
                       title=f"Enforcement Actions Over Time — {emp_name.title()}",
