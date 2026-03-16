@@ -7,17 +7,20 @@ Cross-agency employer labor violation database linking NLRB labor relations case
 | Metric | Value |
 |--------|-------|
 | NLRB Cases | 233,011 |
-| Employer Profiles | 91,656 |
-| Average Quality Score | 0.981 |
+| WHD Wage & Hour Cases | 6,998 |
+| Employer Profiles | 97,760 |
+| Cross-Agency Links | 190,618 |
+| Multi-Agency Offenders | 529 |
+| Total Back Wages | $45,526,130 |
+| Employees Affected | 46,002 |
 | Coverage | 2015–present, all 50 states + DC |
-| Top Employer | USPS (24,055 cases) |
-| Tests | 107 passing |
+| Tests | 115 passing |
 
 ## Data Sources
 
 - **NLRB Case Data** — Nightly-updated bulk database from labordata/nlrb-data (filing + allegation tables)
-- **DOL WHD Compliance Actions** — Wage theft, FLSA/FMLA violations, back wages (Phase 2 — pending API key)
-- **OSHA Inspections** — Workplace safety inspections, violations, penalties, fatalities (Phase 2 — pending API key)
+- **DOL WHD Compliance Actions** — 6,998 wage theft cases via DOL v4 API (FLSA/FMLA/SCA violations, back wages, penalties)
+- **OSHA Inspections** — Workplace safety inspections, violations, penalties, fatalities (pending — download interrupted)
 
 ## Cross-Linking Value
 
@@ -64,7 +67,7 @@ python -m src.cli dashboard
 - Python 3.12, SQLite (WAL mode), Click CLI, Streamlit + Plotly
 - Zero LLM dependency — all extraction is rule-based
 - Quality scoring (0.0-1.0) on every record
-- 107 automated tests
+- 115 automated tests
 - Employer name normalization with DBA extraction and fuzzy matching
 
 ## Built By

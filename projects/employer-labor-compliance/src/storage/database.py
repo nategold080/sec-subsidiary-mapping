@@ -5,7 +5,10 @@ from __future__ import annotations
 import sqlite3
 from pathlib import Path
 
-DB_PATH = Path(__file__).parent.parent.parent / "data" / "labor_compliance.db"
+_PROJECT = Path(__file__).parent.parent.parent
+_DEPLOY_DB = _PROJECT / "data" / "labor_compliance_deploy.db"
+_FULL_DB = _PROJECT / "data" / "labor_compliance.db"
+DB_PATH = _FULL_DB if _FULL_DB.exists() else _DEPLOY_DB
 
 
 def get_connection(db_path: Path | None = None) -> sqlite3.Connection:

@@ -1,0 +1,7 @@
+.env
+data/raw/
+data/*.db
+!data/labor_compliance_deploy.db
+data/exports/
+__pycache__/
+*.pyc

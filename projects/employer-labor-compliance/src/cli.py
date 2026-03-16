@@ -57,21 +57,21 @@ def scrape(whd: bool, osha: bool, nlrb: bool, force: bool):
 @click.option("--min-year", default=2015, help="Minimum year to include")
 def extract(min_year: int):
     """Parse and extract structured records from raw data."""
-    from src.scrapers.whd import parse_whd_csv, CACHE_FILE as WHD_FILE
-    from src.scrapers.osha import parse_osha_csv, CACHE_FILE as OSHA_FILE
+    from src.scrapers.whd import parse_whd_data, CACHE_FILE as WHD_FILE
+    from src.scrapers.osha import parse_osha_data, CACHE_FILE as OSHA_FILE
     from src.scrapers.nlrb import parse_nlrb_db, parse_nlrb_csv, NLRB_DB_FILE, NLRB_CSV_FILE
 
     results = {}
 
     if WHD_FILE.exists():
         console.print("[bold blue]Parsing WHD data...[/]")
-        whd_records = parse_whd_csv(min_year=min_year)
+        whd_records = parse_whd_data(min_year=min_year)
         results["whd"] = whd_records
         console.print(f"  [green]✓[/] {len(whd_records):,} WHD records")
 
     if OSHA_FILE.exists():
         console.print("[bold blue]Parsing OSHA data...[/]")
-        osha_records = parse_osha_csv(min_year=min_year)
+        osha_records = parse_osha_data(min_year=min_year)
         results["osha"] = osha_records
         console.print(f"  [green]✓[/] {len(osha_records):,} OSHA records")
 
@@ -97,8 +97,8 @@ def pipeline(min_year: int):
     from src.normalization.employers import normalize_employer
     from src.validation.quality import score_whd_case, score_osha_inspection, score_nlrb_case
     from src.normalization.cross_linker import cross_link_all
-    from src.scrapers.whd import parse_whd_csv, CACHE_FILE as WHD_FILE
-    from src.scrapers.osha import parse_osha_csv, CACHE_FILE as OSHA_FILE
+    from src.scrapers.whd import parse_whd_data, CACHE_FILE as WHD_FILE
+    from src.scrapers.osha import parse_osha_data, CACHE_FILE as OSHA_FILE
     from src.scrapers.nlrb import parse_nlrb_db, parse_nlrb_csv, NLRB_DB_FILE, NLRB_CSV_FILE
 
     conn = get_connection()
@@ -107,7 +107,7 @@ def pipeline(min_year: int):
     # 1. WHD
     if WHD_FILE.exists():
         console.print("[bold blue]Processing WHD data...[/]")
-        records = parse_whd_csv(min_year=min_year)
+        records = parse_whd_data(min_year=min_year)
         for rec in records:
             name = rec.get("trade_name", "") or rec.get("legal_name", "")
             rec["employer_normalized"] = normalize_employer(name)
@@ -122,7 +122,7 @@ def pipeline(min_year: int):
     # 2. OSHA
     if OSHA_FILE.exists():
         console.print("[bold blue]Processing OSHA data...[/]")
-        records = parse_osha_csv(min_year=min_year)
+        records = parse_osha_data(min_year=min_year)
         for rec in records:
             rec["employer_normalized"] = normalize_employer(rec.get("establishment_name", ""))
             qs = score_osha_inspection(rec)

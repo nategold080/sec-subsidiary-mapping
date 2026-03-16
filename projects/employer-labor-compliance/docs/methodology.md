@@ -18,23 +18,24 @@ This document describes the methodology for building a cross-agency employer lab
 - **Fields:** Case number, case name, case type (C/CA/CB/CC/CD/CE/CG/CP/R/RC/RD/RM/UC/UD), date filed, date closed, status, city, state, eligible voters, allegations
 - **Access:** Public, no authentication required
 
-### Secondary Source: DOL WHD (Phase 2 — Pending)
-- **Source:** Department of Labor, Wage & Hour Division
-- **Status:** Data access blocked by DOL site migration (enforcedata.dol.gov decommissioned)
-- **Expected fields:** Employer, address, FLSA/FMLA/SCA violations, back wages, penalties, investigation dates
-- **Resolution:** Awaiting DOL v4 API availability or manual download from data.dol.gov
+### Secondary Source: DOL WHD (Live)
+- **Source:** Department of Labor, Wage & Hour Division via v4 API (`apiprod.dol.gov/v4/get/WHD/enforcement/json`)
+- **Raw records:** 363,365 (all years); 6,998 unique cases after filtering to 2015+ and deduplicating by case_id
+- **Fields:** case_id, trade_nm, legal_name, address, violations by statute (FLSA, FMLA, SCA, MSPA, H1B, DBA), back wages, civil penalties, employees affected
+- **Access:** Free API key from DOL data portal
 
-### Tertiary Source: OSHA Inspections (Phase 2 — Pending)
+### Tertiary Source: OSHA Inspections (Pending)
 - **Source:** Department of Labor, Occupational Safety & Health Administration
-- **Status:** Data access blocked by same DOL migration
+- **Status:** OSHA Inspection dataset (ID 10313) available on DOL v4 API; download was started but interrupted
 - **Expected fields:** Employer, site address, inspection type, violations (serious/willful/repeat), penalties, fatalities
-- **Resolution:** OSHA Inspection dataset (ID 10313) exists on DOL v4 API but requires free API key
+- **Resolution:** Re-run OSHA download to completion when ready
 
 ## Extraction Pipeline
 
 ### Step 1: Data Download
 - NLRB: Download nightly SQLite release (nlrb.db.zip, ~171 MB compressed → 951 MB) from GitHub
-- WHD/OSHA: Bulk CSV download from DOL (pending migration resolution)
+- WHD: Paginated download via DOL v4 API (1,500 records/page, 2s delay between requests, resumable with page-level caching)
+- OSHA: Same DOL v4 API (pending download completion)
 - All raw data cached locally to prevent re-downloading
 
 ### Step 2: NLRB Parsing
@@ -45,9 +46,9 @@ This document describes the methodology for building a cross-agency employer lab
 - Parse dates from MM/DD/YYYY and YYYY-MM-DD formats
 - Extract employer name from case_name field
 
-### Step 3: WHD/OSHA Parsing (When Available)
-- WHD: Parse employer name, violations by act (FLSA, FMLA, SCA, MSPA), back wages, civil penalties
-- OSHA: Parse establishment name, inspection type, violation types, penalties, fatality/injury/hospitalization counts
+### Step 3: WHD/OSHA Parsing
+- WHD: Parse employer name (trade_nm, legal_name), violations by act (FLSA, FMLA, SCA, MSPA, H1B, DBA), back wages, civil penalties, employees affected, NAICS code. Dates normalized from ISO format.
+- OSHA: Parse establishment name, inspection type, violation types, penalties, fatality/injury/hospitalization counts (pending data download)
 
 ### Step 4: Employer Name Normalization
 Multi-step pipeline for consistent employer matching:
@@ -98,29 +99,35 @@ Composite employer compliance risk score using log-scaled penalty accumulation:
 - Tables: nlrb_cases, whd_cases, osha_inspections, employers, cross_links
 - Indexed by employer name, state, date, case type
 
-## Current Coverage (Phase 1)
+## Current Coverage
 
 | Metric | Value |
 |--------|-------|
 | NLRB Cases | 233,011 |
-| Employer Profiles | 91,656 |
-| Average Quality Score | 0.981 |
+| WHD Wage & Hour Cases | 6,998 |
+| Employer Profiles | 97,760 |
+| Cross-Agency Links | 190,618 |
+| Multi-Agency Offenders | 529 |
+| Total Back Wages | $45,526,130 |
+| Employees Affected | 46,002 |
+| Avg Quality — NLRB | 0.981 |
+| Avg Quality — WHD | 0.858 |
 | Date Range | 2015–present |
-| Top Employer | USPS (24,055 cases) |
 | States | All 50 + DC + territories |
 
 ## Limitations
 
-1. **Phase 1 coverage:** Currently NLRB-only. WHD and OSHA data will be added when DOL data access is restored.
+1. **OSHA data pending:** OSHA inspection data download was started but interrupted. Will be added when download completes.
 2. **Employer name resolution:** Employer names come from case filings and may have inconsistencies. Normalization addresses common variations but cannot resolve all ambiguities.
 3. **Case outcome gaps:** NLRB case outcomes (settled, withdrawn, dismissed) are tracked by status field but specific remedy details are not structured in the bulk data.
 4. **Cross-agency matching depends on name normalization:** False negatives are possible when employers use different legal entity names across agencies.
 5. **Federal employer concentration:** USPS, which is the largest federal employer and the largest NLRB respondent, may skew aggregate statistics.
+6. **WHD case deduplication:** WHD raw data contains 363,365 records with 187,125 unique case IDs (multiple rows per case for different compliance findings). After filtering to 2015+ and upserting by case_id, 6,998 unique cases remain.
 
 ## Quality Assurance
 
 - All extraction is rule-based (zero LLM dependency)
-- 107 automated tests covering scrapers, normalization, quality scoring, cross-linking, database operations, and exports
+- 115 automated tests covering scrapers, normalization, quality scoring, cross-linking, database operations, and exports
 - Quality scoring on every record with component-level breakdown
 - Cross-link confidence scores tracked per link
 

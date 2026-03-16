@@ -6,9 +6,9 @@ OSHA safety inspections, and NLRB labor relations cases to build employer
 compliance profiles.
 
 ## Data Sources
-1. **DOL WHD** — Wage & Hour Division compliance actions (back wages, penalties, FLSA/FMLA violations)
-2. **OSHA** — Workplace safety inspections (violations, penalties, fatalities)
-3. **NLRB** — National Labor Relations Board cases (unfair labor practices, union elections)
+1. **DOL WHD** — Wage & Hour Division compliance actions via v4 API (6,998 cases, $45.5M back wages)
+2. **OSHA** — Workplace safety inspections (pending — download interrupted)
+3. **NLRB** — National Labor Relations Board cases (233,011 cases)
    - Primary source: labordata/nlrb-data nightly SQLite release (5.9M records)
 
 ## Architecture
@@ -16,8 +16,8 @@ compliance profiles.
 src/
 ├── cli.py                    — Click CLI: scrape, extract, pipeline, stats, export, dashboard
 ├── scrapers/
-│   ├── whd.py               — DOL WHD bulk CSV download/parse
-│   ├── osha.py              — OSHA inspection CSV download/parse
+│   ├── whd.py               — DOL WHD v4 API download/parse (363K raw records)
+│   ├── osha.py              — OSHA v4 API download/parse
 │   └── nlrb.py              — NLRB SQLite DB download/parse (labordata/nlrb-data)
 ├── normalization/
 │   ├── employers.py          — Name normalization, DBA extraction, state codes
@@ -39,8 +39,7 @@ src/
 - **Quality scoring**: Weighted component formula per source (0.0-1.0)
 
 ## Known Issues
-See PROBLEMS.md. Key blocker: DOL migrated from enforcedata.dol.gov → data.dol.gov,
-breaking bulk CSV download URLs. NLRB data is fully accessible via GitHub bulk download.
+See PROBLEMS.md. DOL API key obtained, WHD data loaded (P1 DONE). OSHA download pending.
 
 ## Running
 ```bash
@@ -53,5 +52,5 @@ python -m src.cli dashboard    # Launch Streamlit dashboard
 
 ## Testing
 ```bash
-python -m pytest tests/ -v     # 107 tests
+python -m pytest tests/ -v     # 115 tests
 ```
