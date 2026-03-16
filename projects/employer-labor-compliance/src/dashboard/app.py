@@ -42,17 +42,30 @@ US_STATES = {
 _DARK = dict(template="plotly_dark", paper_bgcolor="#0E1117", plot_bgcolor="#0E1117")
 
 # SQL fragment to merge well-known employer name variants
+# Uses prefix matching for large brands with many location suffixes
 _EMPLOYER_MERGE = """
-    CASE name_normalized
-        WHEN 'U S POSTAL SERVICE' THEN 'UNITED STATES POSTAL SERVICE'
-        WHEN 'US POSTAL SERVICE' THEN 'UNITED STATES POSTAL SERVICE'
-        WHEN 'USPS' THEN 'UNITED STATES POSTAL SERVICE'
-        WHEN 'UPS' THEN 'UNITED PARCEL SERVICE'
-        WHEN 'AT T' THEN 'AT AND T'
-        WHEN 'ATT' THEN 'AT AND T'
-        WHEN 'WAL MART' THEN 'WALMART'
-        WHEN 'WAL MART STORES' THEN 'WALMART'
-        WHEN 'MCDONALDS' THEN 'MCDONALD S'
+    CASE
+        WHEN name_normalized IN ('U S POSTAL SERVICE','US POSTAL SERVICE','USPS')
+             OR name_normalized LIKE 'UNITED STATES POSTAL SERVICE%'
+             THEN 'UNITED STATES POSTAL SERVICE'
+        WHEN name_normalized = 'UPS' OR name_normalized LIKE 'UNITED PARCEL SERVICE%'
+             THEN 'UNITED PARCEL SERVICE'
+        WHEN name_normalized LIKE 'WALMART%' OR name_normalized LIKE 'WAL MART%'
+             THEN 'WALMART'
+        WHEN name_normalized LIKE 'AMAZON%' OR name_normalized LIKE 'AMAZONCOM%'
+             THEN 'AMAZON'
+        WHEN name_normalized LIKE 'STARBUCKS%' THEN 'STARBUCKS'
+        WHEN name_normalized LIKE 'MCDONALD%' THEN 'MCDONALDS'
+        WHEN name_normalized LIKE 'TARGET%' AND LENGTH(name_normalized) <= 20
+             THEN 'TARGET'
+        WHEN name_normalized IN ('AT T','ATT','AT AND T') OR name_normalized LIKE 'AT AND T %'
+             OR name_normalized LIKE 'AT T %' THEN 'AT AND T'
+        WHEN name_normalized LIKE 'FEDEX%' OR name_normalized LIKE 'FEDERAL EXPRESS%'
+             THEN 'FEDEX'
+        WHEN name_normalized LIKE 'HOME DEPOT%' THEN 'HOME DEPOT'
+        WHEN name_normalized LIKE 'KROGER%' THEN 'KROGER'
+        WHEN name_normalized LIKE 'DOLLAR GENERAL%' THEN 'DOLLAR GENERAL'
+        WHEN name_normalized LIKE 'DOLLAR TREE%' THEN 'DOLLAR TREE'
         ELSE name_normalized
     END
 """
