@@ -41,6 +41,22 @@ US_STATES = {
 
 _DARK = dict(template="plotly_dark", paper_bgcolor="#0E1117", plot_bgcolor="#0E1117")
 
+# SQL fragment to merge well-known employer name variants
+_EMPLOYER_MERGE = """
+    CASE name_normalized
+        WHEN 'U S POSTAL SERVICE' THEN 'UNITED STATES POSTAL SERVICE'
+        WHEN 'US POSTAL SERVICE' THEN 'UNITED STATES POSTAL SERVICE'
+        WHEN 'USPS' THEN 'UNITED STATES POSTAL SERVICE'
+        WHEN 'UPS' THEN 'UNITED PARCEL SERVICE'
+        WHEN 'AT T' THEN 'AT AND T'
+        WHEN 'ATT' THEN 'AT AND T'
+        WHEN 'WAL MART' THEN 'WALMART'
+        WHEN 'WAL MART STORES' THEN 'WALMART'
+        WHEN 'MCDONALDS' THEN 'MCDONALD S'
+        ELSE name_normalized
+    END
+"""
+
 
 def _safe_query(sql, conn, params=()):
     try:
@@ -107,10 +123,9 @@ def main():
         "Top Employers",
         "Temporal Trends",
         "WHD Wage Theft",
-        "OSHA Safety",
+        "OSHA Inspections",
         "NLRB Labor Relations",
         "Employer Search",
-        "Data Quality",
     ])
 
     pages = {
@@ -120,10 +135,9 @@ def main():
         "Top Employers": show_top_employers,
         "Temporal Trends": show_trends,
         "WHD Wage Theft": show_whd,
-        "OSHA Safety": show_osha,
+        "OSHA Inspections": show_osha,
         "NLRB Labor Relations": show_nlrb,
         "Employer Search": show_employer_search,
-        "Data Quality": show_quality,
     }
     pages[page](conn)
 
@@ -162,31 +176,27 @@ def show_overview(conn):
     c3.metric("OSHA Inspections", f"{osha:,}")
     c4.metric("Unique Employers", f"{employers:,}")
 
-    # Row 2: Financial & impact
+    # Row 2: Financial & impact (only non-zero metrics)
     back_wages = _safe_fetchone(conn, "SELECT COALESCE(SUM(back_wages_owed),0) FROM whd_cases")
     whd_penalties = _safe_fetchone(conn, "SELECT COALESCE(SUM(civil_penalties),0) FROM whd_cases")
-    osha_penalties = _safe_fetchone(conn, "SELECT COALESCE(SUM(total_current_penalty),0) FROM osha_inspections")
     employees = _safe_fetchone(conn, "SELECT COALESCE(SUM(employees_affected),0) FROM whd_cases")
-    fatalities = _safe_fetchone(conn, "SELECT COALESCE(SUM(fatalities),0) FROM osha_inspections")
     multi_agency = _safe_fetchone(conn, """
         SELECT COUNT(*) FROM employers
         WHERE (CASE WHEN whd_case_count > 0 THEN 1 ELSE 0 END +
                CASE WHEN osha_inspection_count > 0 THEN 1 ELSE 0 END +
                CASE WHEN nlrb_case_count > 0 THEN 1 ELSE 0 END) >= 2
     """)
+    open_nlrb = _safe_fetchone(conn, "SELECT COUNT(*) FROM nlrb_cases WHERE status = 'Open'")
 
     c5, c6, c7, c8 = st.columns(4)
     c5.metric("Total Back Wages", f"${back_wages:,.0f}")
-    c6.metric("Total Penalties", f"${whd_penalties + osha_penalties:,.0f}")
-    c7.metric("Workers Affected (WHD)", f"{employees:,}")
+    c6.metric("WHD Civil Penalties", f"${whd_penalties:,.0f}")
+    c7.metric("Workers Affected", f"{employees:,}")
     c8.metric("Multi-Agency Offenders", f"{multi_agency:,}")
 
-    c9, c10, c11, c12 = st.columns(4)
-    c9.metric("Workplace Fatalities (OSHA)", f"{fatalities:,}")
-    open_nlrb = _safe_fetchone(conn, "SELECT COUNT(*) FROM nlrb_cases WHERE status = 'Open'")
-    c10.metric("NLRB Open Cases", f"{open_nlrb:,}")
-    c11.metric("WHD Penalties", f"${whd_penalties:,.0f}")
-    c12.metric("OSHA Penalties", f"${osha_penalties:,.0f}")
+    c9, c10 = st.columns(2)
+    c9.metric("NLRB Open Cases", f"{open_nlrb:,}")
+    c10.metric("Total Enforcement Records", f"{nlrb + whd + osha:,}")
 
     st.markdown("---")
 
@@ -259,7 +269,7 @@ def show_geographic(conn):
 
     metric = st.selectbox("Color map by:", [
         "All Enforcement Actions", "NLRB Cases", "WHD Wage Theft Cases",
-        "OSHA Inspections", "Total Back Wages", "Total Penalties",
+        "OSHA Inspections", "Total Back Wages",
     ])
     col_map = {
         "All Enforcement Actions": "total",
@@ -267,7 +277,6 @@ def show_geographic(conn):
         "WHD Wage Theft Cases": "whd_cases",
         "OSHA Inspections": "osha_inspections",
         "Total Back Wages": "back_wages",
-        "Total Penalties": "penalties",
     }
     color_col = col_map[metric]
 
@@ -279,17 +288,17 @@ def show_geographic(conn):
         color="_color", scope="usa",
         color_continuous_scale="YlOrRd",
         title=f"{metric} by State",
-        hover_data=["nlrb_cases", "whd_cases", "osha_inspections", "back_wages", "penalties"],
+        hover_data=["nlrb_cases", "whd_cases", "osha_inspections", "back_wages"],
     )
     fig.update_layout(**_DARK, height=500)
     fig.update_coloraxes(colorbar_title=metric)
     st.plotly_chart(fig, use_container_width=True)
 
     st.subheader("State Breakdown")
-    df_display = df[["state", "total", "nlrb_cases", "whd_cases", "osha_inspections", "back_wages", "penalties"]].copy()
-    df_display.columns = ["State", "Total", "NLRB", "WHD", "OSHA", "Back Wages", "Penalties"]
+    df_display = df[["state", "total", "nlrb_cases", "whd_cases", "osha_inspections", "back_wages"]].copy()
+    df_display.columns = ["State", "Total", "NLRB", "WHD", "OSHA", "Back Wages"]
     st.dataframe(
-        df_display.style.format({"Back Wages": "${:,.0f}", "Penalties": "${:,.0f}"}),
+        df_display.style.format({"Back Wages": "${:,.0f}"}),
         use_container_width=True, height=400,
     )
 
@@ -315,17 +324,26 @@ def show_multi_agency(conn):
     c1.metric("2+ Agency Offenders", f"{multi_count:,}")
     c2.metric("All 3 Agencies", f"{three_agency:,}")
 
-    # Top multi-agency offenders
-    df = _safe_query("""
-        SELECT name_normalized as employer, primary_state as state,
-               whd_case_count as whd, osha_inspection_count as osha,
-               nlrb_case_count as nlrb,
-               (whd_case_count + osha_inspection_count + nlrb_case_count) as total,
-               total_back_wages, total_penalties, total_fatalities
-        FROM employers
-        WHERE (CASE WHEN whd_case_count > 0 THEN 1 ELSE 0 END +
-               CASE WHEN osha_inspection_count > 0 THEN 1 ELSE 0 END +
-               CASE WHEN nlrb_case_count > 0 THEN 1 ELSE 0 END) >= 2
+    # Top multi-agency offenders — merge name variants
+    df = _safe_query(f"""
+        SELECT merged_name as employer,
+               MAX(primary_state) as state,
+               SUM(whd_case_count) as whd,
+               SUM(osha_inspection_count) as osha,
+               SUM(nlrb_case_count) as nlrb,
+               SUM(whd_case_count + osha_inspection_count + nlrb_case_count) as total,
+               SUM(total_back_wages) as total_back_wages,
+               SUM(total_penalties) as total_penalties
+        FROM (
+            SELECT {_EMPLOYER_MERGE} as merged_name,
+                   primary_state, whd_case_count, osha_inspection_count, nlrb_case_count,
+                   total_back_wages, total_penalties
+            FROM employers
+            WHERE (CASE WHEN whd_case_count > 0 THEN 1 ELSE 0 END +
+                   CASE WHEN osha_inspection_count > 0 THEN 1 ELSE 0 END +
+                   CASE WHEN nlrb_case_count > 0 THEN 1 ELSE 0 END) >= 2
+        )
+        GROUP BY merged_name
         ORDER BY total DESC
         LIMIT 100
     """, conn)
@@ -334,7 +352,6 @@ def show_multi_agency(conn):
         st.info("No multi-agency offenders found.")
         return
 
-    # Agency overlap breakdown
     st.subheader("Top 100 Multi-Agency Offenders")
     st.dataframe(
         df.style.format({
@@ -361,26 +378,33 @@ def show_top_employers(conn):
 
     sort_by = st.selectbox("Rank by:", [
         "Total Actions (All Agencies)", "NLRB Cases", "WHD Cases",
-        "OSHA Inspections", "Total Back Wages", "Total Penalties", "Fatalities",
+        "OSHA Inspections", "Total Back Wages",
     ])
-    col_map = {
-        "Total Actions (All Agencies)": "(whd_case_count + osha_inspection_count + nlrb_case_count)",
-        "NLRB Cases": "nlrb_case_count",
-        "WHD Cases": "whd_case_count",
-        "OSHA Inspections": "osha_inspection_count",
+    sort_col = {
+        "Total Actions (All Agencies)": "total",
+        "NLRB Cases": "nlrb",
+        "WHD Cases": "whd",
+        "OSHA Inspections": "osha",
         "Total Back Wages": "total_back_wages",
-        "Total Penalties": "total_penalties",
-        "Fatalities": "total_fatalities",
     }
 
     df = _safe_query(f"""
-        SELECT name_normalized as employer, primary_state as state,
-               nlrb_case_count as nlrb, whd_case_count as whd,
-               osha_inspection_count as osha,
-               (whd_case_count + osha_inspection_count + nlrb_case_count) as total,
-               total_back_wages, total_penalties, total_fatalities
-        FROM employers
-        ORDER BY {col_map[sort_by]} DESC
+        SELECT merged_name as employer,
+               MAX(primary_state) as state,
+               SUM(nlrb_case_count) as nlrb,
+               SUM(whd_case_count) as whd,
+               SUM(osha_inspection_count) as osha,
+               SUM(whd_case_count + osha_inspection_count + nlrb_case_count) as total,
+               SUM(total_back_wages) as total_back_wages,
+               SUM(total_penalties) as total_penalties
+        FROM (
+            SELECT {_EMPLOYER_MERGE} as merged_name,
+                   primary_state, whd_case_count, osha_inspection_count, nlrb_case_count,
+                   total_back_wages, total_penalties
+            FROM employers
+        )
+        GROUP BY merged_name
+        ORDER BY {sort_col[sort_by]} DESC
         LIMIT 50
     """, conn)
 
@@ -407,62 +431,76 @@ def show_top_employers(conn):
 def show_trends(conn):
     st.header("Temporal Trends")
 
-    # NLRB monthly
-    df_nlrb = _safe_query("""
-        SELECT substr(date_filed, 1, 7) as month, COUNT(*) as cases
-        FROM nlrb_cases WHERE date_filed >= '2005-01' AND date_filed != ''
-        GROUP BY month ORDER BY month
-    """, conn)
+    # Show each agency separately with its actual date range
+    # NLRB: 2015-present, WHD: 2015-2018, OSHA: 2005-2017
 
-    # WHD monthly
-    df_whd = _safe_query("""
-        SELECT substr(findings_start_date, 1, 7) as month, COUNT(*) as cases
-        FROM whd_cases WHERE findings_start_date >= '2005-01' AND findings_start_date != ''
-        GROUP BY month ORDER BY month
-    """, conn)
+    tab1, tab2, tab3 = st.tabs(["NLRB (2015-Present)", "OSHA (2005-2017)", "WHD (2015-2018)"])
 
-    # OSHA monthly
-    df_osha = _safe_query("""
-        SELECT substr(open_date, 1, 7) as month, COUNT(*) as cases
-        FROM osha_inspections WHERE open_date >= '2005-01' AND open_date != ''
-        GROUP BY month ORDER BY month
-    """, conn)
+    with tab1:
+        df_nlrb = _safe_query("""
+            SELECT substr(date_filed,1,4) as year, COUNT(*) as cases
+            FROM nlrb_cases WHERE date_filed >= '2015' AND date_filed != ''
+            GROUP BY year ORDER BY year
+        """, conn)
+        if not df_nlrb.empty:
+            fig = px.bar(df_nlrb, x="year", y="cases",
+                         title="NLRB Cases Filed Per Year",
+                         color_discrete_sequence=["#3498db"])
+            fig.update_layout(**_DARK, height=400)
+            st.plotly_chart(fig, use_container_width=True)
 
-    fig = go.Figure()
-    if not df_nlrb.empty:
-        fig.add_trace(go.Scatter(x=df_nlrb["month"], y=df_nlrb["cases"],
-                                 mode="lines", name="NLRB Cases", line=dict(color="#3498db")))
-    if not df_whd.empty:
-        fig.add_trace(go.Scatter(x=df_whd["month"], y=df_whd["cases"],
-                                 mode="lines", name="WHD Cases", line=dict(color="#e74c3c")))
-    if not df_osha.empty:
-        fig.add_trace(go.Scatter(x=df_osha["month"], y=df_osha["cases"],
-                                 mode="lines", name="OSHA Inspections", line=dict(color="#f39c12")))
+    with tab2:
+        df_osha = _safe_query("""
+            SELECT substr(open_date,1,4) as year, COUNT(*) as inspections
+            FROM osha_inspections WHERE open_date >= '2005' AND open_date != ''
+            GROUP BY year ORDER BY year
+        """, conn)
+        if not df_osha.empty:
+            fig = px.bar(df_osha, x="year", y="inspections",
+                         title="OSHA Inspections Per Year",
+                         color_discrete_sequence=["#f39c12"])
+            fig.update_layout(**_DARK, height=400)
+            st.plotly_chart(fig, use_container_width=True)
 
-    fig.update_layout(**_DARK, height=450, title="Monthly Enforcement Actions Across All Agencies (2005-Present)",
-                      xaxis_title="Month", yaxis_title="Actions")
-    st.plotly_chart(fig, use_container_width=True)
+    with tab3:
+        df_whd = _safe_query("""
+            SELECT substr(findings_start_date,1,4) as year, COUNT(*) as cases,
+                   SUM(COALESCE(back_wages_owed,0)) as back_wages
+            FROM whd_cases WHERE findings_start_date >= '2005' AND findings_start_date != ''
+            GROUP BY year ORDER BY year
+        """, conn)
+        if not df_whd.empty:
+            fig = px.bar(df_whd, x="year", y="cases",
+                         title="WHD Wage Theft Cases Per Year",
+                         color_discrete_sequence=["#e74c3c"])
+            fig.update_layout(**_DARK, height=400)
+            st.plotly_chart(fig, use_container_width=True)
 
-    # Annual comparison
-    st.subheader("Annual Volume by Agency")
+    # Combined annual comparison for overlapping years only
+    st.subheader("Combined View (Overlapping Years)")
     df_annual = _safe_query("""
         SELECT year, SUM(nlrb) as NLRB, SUM(whd) as WHD, SUM(osha) as OSHA FROM (
             SELECT substr(date_filed,1,4) as year, COUNT(*) as nlrb, 0 as whd, 0 as osha
-            FROM nlrb_cases WHERE date_filed >= '2005' AND date_filed != '' GROUP BY year
+            FROM nlrb_cases WHERE date_filed >= '2015' AND date_filed != '' GROUP BY year
             UNION ALL
             SELECT substr(findings_start_date,1,4), 0, COUNT(*), 0
-            FROM whd_cases WHERE findings_start_date >= '2005' AND findings_start_date != '' GROUP BY 1
+            FROM whd_cases WHERE findings_start_date >= '2015' AND findings_start_date != '' GROUP BY 1
             UNION ALL
             SELECT substr(open_date,1,4), 0, 0, COUNT(*)
-            FROM osha_inspections WHERE open_date >= '2005' AND open_date != '' GROUP BY 1
-        ) GROUP BY year ORDER BY year
+            FROM osha_inspections WHERE open_date >= '2015' AND open_date != '' GROUP BY 1
+        ) GROUP BY year
+        HAVING year >= '2015' AND year <= '2018'
+        ORDER BY year
     """, conn)
-    if not df_annual.empty:
+    if not df_annual.empty and len(df_annual) > 0:
         fig2 = px.bar(df_annual, x="year", y=["NLRB", "WHD", "OSHA"],
-                       title="Annual Enforcement Actions by Agency", barmode="group",
+                       title="Annual Enforcement Actions — All 3 Agencies (2015-2018)",
+                       barmode="group",
                        color_discrete_sequence=["#3498db", "#e74c3c", "#f39c12"])
         fig2.update_layout(**_DARK, height=400)
         st.plotly_chart(fig2, use_container_width=True)
+    else:
+        st.info("No overlapping year data available.")
 
 
 # --- WHD WAGE THEFT ---
@@ -556,99 +594,88 @@ def show_whd(conn):
         )
 
 
-# --- OSHA SAFETY ---
+# --- OSHA INSPECTIONS ---
 
 def show_osha(conn):
-    st.header("OSHA Workplace Safety")
+    st.header("OSHA Workplace Safety Inspections")
 
     osha_count = _safe_fetchone(conn, "SELECT COUNT(*) FROM osha_inspections")
     if osha_count == 0:
         st.info("No OSHA data loaded.")
         return
 
-    penalties = _safe_fetchone(conn, "SELECT COALESCE(SUM(total_current_penalty),0) FROM osha_inspections")
-    violations = _safe_fetchone(conn, "SELECT COALESCE(SUM(num_violations),0) FROM osha_inspections")
-    serious = _safe_fetchone(conn, "SELECT COALESCE(SUM(serious_violations),0) FROM osha_inspections")
-    willful = _safe_fetchone(conn, "SELECT COALESCE(SUM(willful_violations),0) FROM osha_inspections")
-    repeat = _safe_fetchone(conn, "SELECT COALESCE(SUM(repeat_violations),0) FROM osha_inspections")
-    fatalities = _safe_fetchone(conn, "SELECT COALESCE(SUM(fatalities),0) FROM osha_inspections")
+    # Only show KPIs that have data — inspection counts, not violation details
+    states_covered = _safe_fetchone(conn, "SELECT COUNT(DISTINCT site_state) FROM osha_inspections WHERE site_state != ''")
+    employers_inspected = _safe_fetchone(conn, "SELECT COUNT(DISTINCT employer_normalized) FROM osha_inspections WHERE employer_normalized != ''")
+    date_range = _safe_fetchone(conn, "SELECT MIN(open_date) || ' — ' || MAX(open_date) FROM osha_inspections WHERE open_date != ''", default="N/A")
 
-    c1, c2, c3, c4 = st.columns(4)
-    c1.metric("Inspections", f"{osha_count:,}")
-    c2.metric("Total Violations", f"{violations:,}")
-    c3.metric("Total Penalties", f"${penalties:,.0f}")
-    c4.metric("Fatalities Linked", f"{fatalities:,}")
+    c1, c2, c3 = st.columns(3)
+    c1.metric("Total Inspections", f"{osha_count:,}")
+    c2.metric("States Covered", f"{states_covered:,}")
+    c3.metric("Employers Inspected", f"{employers_inspected:,}")
 
-    c5, c6, c7, _ = st.columns(4)
-    c5.metric("Serious Violations", f"{serious:,}")
-    c6.metric("Willful Violations", f"{willful:,}")
-    c7.metric("Repeat Violations", f"{repeat:,}")
+    st.caption(f"Coverage period: {date_range}")
 
     left, right = st.columns(2)
 
     with left:
-        # Violation severity breakdown
-        sev_data = pd.DataFrame({
-            "Type": ["Serious", "Willful", "Repeat", "Other"],
-            "Count": [serious, willful, repeat, max(0, violations - serious - willful - repeat)],
-        })
-        sev_data = sev_data[sev_data["Count"] > 0]
-        if not sev_data.empty:
-            fig = px.pie(sev_data, values="Count", names="Type", title="Violation Severity Breakdown",
-                         color_discrete_sequence=["#e74c3c", "#c0392b", "#f39c12", "#95a5a6"])
-            fig.update_layout(**_DARK, height=400)
-            st.plotly_chart(fig, use_container_width=True)
-
-    with right:
         # Top states
         df_states = _safe_query("""
-            SELECT site_state as state, COUNT(*) as inspections,
-                   SUM(COALESCE(total_current_penalty,0)) as penalties,
-                   SUM(COALESCE(fatalities,0)) as fatalities
+            SELECT site_state as state, COUNT(*) as inspections
             FROM osha_inspections WHERE site_state != '' AND LENGTH(site_state) = 2
             GROUP BY site_state ORDER BY inspections DESC LIMIT 15
         """, conn)
         if not df_states.empty:
             fig = px.bar(df_states, x="state", y="inspections",
-                         title="Top 15 States by OSHA Inspections",
-                         color="penalties", color_continuous_scale="YlOrRd")
+                         title="Top 15 States by Inspections",
+                         color="inspections", color_continuous_scale="YlOrRd")
             fig.update_layout(**_DARK, height=400, showlegend=False)
             st.plotly_chart(fig, use_container_width=True)
 
-    # Top employers by penalties
-    st.subheader("Top Employers by OSHA Penalties")
-    df_emp = _safe_query("""
-        SELECT employer_normalized as employer, site_state as state, COUNT(*) as inspections,
-               SUM(COALESCE(num_violations,0)) as violations,
-               SUM(COALESCE(serious_violations,0)) as serious,
-               SUM(COALESCE(total_current_penalty,0)) as penalties,
-               SUM(COALESCE(fatalities,0)) as fatalities
-        FROM osha_inspections WHERE employer_normalized != ''
-        GROUP BY employer_normalized ORDER BY penalties DESC LIMIT 25
+    with right:
+        # Inspection types
+        df_types = _safe_query("""
+            SELECT inspection_type as type, COUNT(*) as count
+            FROM osha_inspections WHERE inspection_type != ''
+            GROUP BY inspection_type ORDER BY count DESC
+        """, conn)
+        if not df_types.empty:
+            type_labels = {"A": "Accident", "B": "Complaint", "C": "Referral", "D": "Monitoring",
+                           "E": "Variance", "F": "Follow-up", "G": "Unprog Related", "H": "Planned",
+                           "I": "Unprog Other", "J": "Programmed Related", "K": "Programmed Other",
+                           "L": "Fatality/Catastrophe"}
+            df_types["label"] = df_types["type"].map(lambda x: type_labels.get(x, x))
+            fig = px.bar(df_types, x="count", y="label", orientation="h",
+                         title="Inspections by Type", color="count", color_continuous_scale="Blues")
+            fig.update_layout(**_DARK, height=400, yaxis=dict(autorange="reversed"), showlegend=False)
+            st.plotly_chart(fig, use_container_width=True)
+
+    # Top employers by inspection count
+    st.subheader("Most Frequently Inspected Employers")
+    df_emp = _safe_query(f"""
+        SELECT merged_name as employer,
+               MAX(site_state) as state,
+               SUM(cnt) as inspections
+        FROM (
+            SELECT
+                CASE employer_normalized
+                    WHEN 'U S POSTAL SERVICE' THEN 'UNITED STATES POSTAL SERVICE'
+                    WHEN 'US POSTAL SERVICE' THEN 'UNITED STATES POSTAL SERVICE'
+                    WHEN 'USPS' THEN 'UNITED STATES POSTAL SERVICE'
+                    WHEN 'UPS' THEN 'UNITED PARCEL SERVICE'
+                    ELSE employer_normalized
+                END as merged_name,
+                site_state,
+                COUNT(*) as cnt
+            FROM osha_inspections WHERE employer_normalized != ''
+            GROUP BY employer_normalized, site_state
+        )
+        GROUP BY merged_name
+        ORDER BY inspections DESC
+        LIMIT 25
     """, conn)
     if not df_emp.empty:
-        st.dataframe(
-            df_emp.style.format({"penalties": "${:,.0f}"}),
-            use_container_width=True,
-        )
-
-    # Inspection types
-    st.subheader("Inspection Types")
-    df_types = _safe_query("""
-        SELECT inspection_type as type, COUNT(*) as count
-        FROM osha_inspections WHERE inspection_type != ''
-        GROUP BY inspection_type ORDER BY count DESC
-    """, conn)
-    if not df_types.empty:
-        type_labels = {"A": "Accident", "B": "Complaint", "C": "Referral", "D": "Monitoring",
-                       "E": "Variance", "F": "Follow-up", "G": "Unprog Related", "H": "Planned",
-                       "I": "Unprog Other", "J": "Programmed Related", "K": "Programmed Other",
-                       "L": "Fatality/Catastrophe"}
-        df_types["label"] = df_types["type"].map(lambda x: type_labels.get(x, x))
-        fig = px.bar(df_types, x="count", y="label", orientation="h",
-                     title="Inspections by Type", color="count", color_continuous_scale="Blues")
-        fig.update_layout(**_DARK, height=400, yaxis=dict(autorange="reversed"), showlegend=False)
-        st.plotly_chart(fig, use_container_width=True)
+        st.dataframe(df_emp, use_container_width=True)
 
 
 # --- NLRB LABOR RELATIONS ---
@@ -734,7 +761,7 @@ def show_employer_search(conn):
                nlrb_case_count as nlrb, whd_case_count as whd,
                osha_inspection_count as osha,
                (whd_case_count + osha_inspection_count + nlrb_case_count) as total,
-               total_back_wages, total_penalties, total_fatalities
+               total_back_wages, total_penalties
         FROM employers WHERE name_normalized LIKE ?
         ORDER BY (whd_case_count + osha_inspection_count + nlrb_case_count) DESC
         LIMIT 50
@@ -794,16 +821,12 @@ def show_employer_search(conn):
         with st.expander(f"OSHA Inspections ({int(row['osha']):,})", expanded=True):
             df_osha = _safe_query("""
                 SELECT establishment_name, site_city, site_state, open_date,
-                       num_violations as violations, serious_violations as serious,
-                       total_current_penalty as penalty, fatalities
+                       inspection_type
                 FROM osha_inspections WHERE employer_normalized = ?
                 ORDER BY open_date DESC LIMIT 25
             """, conn, params=(emp_name,))
             if not df_osha.empty:
-                st.dataframe(
-                    df_osha.style.format({"penalty": "${:,.0f}"}),
-                    use_container_width=True,
-                )
+                st.dataframe(df_osha, use_container_width=True)
 
     # Timeline across agencies
     df_time = _safe_query("""
@@ -824,73 +847,6 @@ def show_employer_search(conn):
                       color_discrete_sequence=["#3498db", "#e74c3c", "#f39c12"])
         fig.update_layout(**_DARK, height=350)
         st.plotly_chart(fig, use_container_width=True)
-
-
-# --- DATA QUALITY ---
-
-def show_quality(conn):
-    st.header("Data Quality & Coverage")
-
-    nlrb = _safe_fetchone(conn, "SELECT COUNT(*) FROM nlrb_cases")
-    whd = _safe_fetchone(conn, "SELECT COUNT(*) FROM whd_cases")
-    osha = _safe_fetchone(conn, "SELECT COUNT(*) FROM osha_inspections")
-    employers = _safe_fetchone(conn, "SELECT COUNT(*) FROM employers")
-
-    nlrb_range = _safe_fetchone(conn, "SELECT MIN(date_filed) || ' to ' || MAX(date_filed) FROM nlrb_cases WHERE date_filed != ''", default="N/A")
-    whd_range = _safe_fetchone(conn, "SELECT MIN(findings_start_date) || ' to ' || MAX(findings_start_date) FROM whd_cases WHERE findings_start_date != ''", default="N/A")
-    osha_range = _safe_fetchone(conn, "SELECT MIN(open_date) || ' to ' || MAX(open_date) FROM osha_inspections WHERE open_date != ''", default="N/A")
-    avg_q_nlrb = _safe_fetchone(conn, "SELECT ROUND(AVG(quality_score),3) FROM nlrb_cases WHERE quality_score > 0", default=0)
-    avg_q_whd = _safe_fetchone(conn, "SELECT ROUND(AVG(quality_score),3) FROM whd_cases WHERE quality_score > 0", default=0)
-    avg_q_osha = _safe_fetchone(conn, "SELECT ROUND(AVG(quality_score),3) FROM osha_inspections WHERE quality_score > 0", default=0)
-
-    st.markdown(f"""
-    | Source | Records | Date Range | Quality |
-    |--------|---------|------------|---------|
-    | **NLRB** (Labor Relations) | {nlrb:,} | {nlrb_range} | Avg {avg_q_nlrb} |
-    | **DOL WHD** (Wage & Hour) | {whd:,} | {whd_range} | Avg {avg_q_whd} |
-    | **OSHA** (Safety) | {osha:,} | {osha_range} | Avg {avg_q_osha} |
-    | **Employer Profiles** | {employers:,} | Combined | Cross-linked |
-    """)
-
-    multi = _safe_fetchone(conn, """
-        SELECT COUNT(*) FROM employers
-        WHERE (CASE WHEN whd_case_count > 0 THEN 1 ELSE 0 END +
-               CASE WHEN osha_inspection_count > 0 THEN 1 ELSE 0 END +
-               CASE WHEN nlrb_case_count > 0 THEN 1 ELSE 0 END) >= 2
-    """)
-    three = _safe_fetchone(conn, """
-        SELECT COUNT(*) FROM employers
-        WHERE whd_case_count > 0 AND osha_inspection_count > 0 AND nlrb_case_count > 0
-    """)
-    st.markdown(f"""
-    ### Cross-Agency Linking
-    - **{multi:,}** employers appear in 2+ agencies
-    - **{three:,}** employers appear in all 3 agencies
-    - Linking method: Normalized employer name matching (uppercase, suffix stripping, DBA extraction)
-    """)
-
-    # Quality distributions
-    left, mid, right = st.columns(3)
-    for col, table, name, color in [
-        (left, "nlrb_cases", "NLRB", "#3498db"),
-        (mid, "whd_cases", "WHD", "#e74c3c"),
-        (right, "osha_inspections", "OSHA", "#f39c12"),
-    ]:
-        with col:
-            df_q = _safe_query(f"""
-                SELECT
-                    CASE WHEN quality_score >= 0.8 THEN 'High'
-                         WHEN quality_score >= 0.5 THEN 'Medium'
-                         ELSE 'Low' END as tier,
-                    COUNT(*) as count
-                FROM {table} WHERE quality_score > 0
-                GROUP BY tier
-            """, conn)
-            if not df_q.empty:
-                fig = px.pie(df_q, values="count", names="tier", title=f"{name} Quality",
-                             color_discrete_sequence=["#2ecc71", "#f39c12", "#e74c3c"])
-                fig.update_layout(**_DARK, height=300)
-                st.plotly_chart(fig, use_container_width=True)
 
 
 if __name__ == "__main__":
